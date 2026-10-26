@@ -1,0 +1,45 @@
+---
+title: "RBIF-111 Week 2 Assignment"
+subtitle: "Topic: TBD"
+author: "Your Name"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: show
+    theme: flatly
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+## Overview
+
+_Briefly describe the goal of this assignment and the methods used._
+
+## Data
+
+```{r load-data}
+# Data for this week lives in the data/ folder next to this file, e.g.:
+# df <- read.csv("data/your_file.csv")
+```
+
+## Analysis
+
+### Question 1
+
+```{r q1}
+
+```
+
+## Conclusions
+
+_Summarize key findings and their biological interpretation._
+
+## Session info
+
+```{r session-info}
+sessionInfo()
+```
