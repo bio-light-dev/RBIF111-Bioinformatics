@@ -1,0 +1,915 @@
+---
+title: RBIF-111 Week 1 Homwork
+author: "Author: Coddie Curry"
+date: "Last update: `r format(Sys.time(), '%d %B, %Y')`" 
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+    fig_caption: yes
+    code_folding: hide
+    number_sections: true
+  pdf_document:
+    toc: true
+vignette: >
+    %\VignetteIndexEntry{Text}
+    %\usepackage[utf8]{inputenc}
+    %\VignetteEngine{knitr::rmarkdown}
+fontsize: 15pt
+editor_options: 
+  chunk_output_type: console
+---
+
+<style>
+pre code, pre, code {
+  white-space: pre !important;
+  overflow-x: auto !important;
+  word-break: keep-all !important;
+  word-wrap: initial !important;
+}
+body {
+text-align: justify}
+</style>
+
+#install.packages("remotes")
+#remotes::install_github("brendangongol/repoquet", force = TRUE, build_vignettes = TRUE)
+#library(repoquet)
+#vignette("repoquet", package = "repoquet")
+#browseVignettes("repoquet")
+
+# RBIF-111 Week 1 Homework
+
+### Question 1
+Create a funtion that calculates the mean of a numeric vector by iterating from the first element to the last without using the built-in **mean()** function. Then:
+
+Sample Mean (for a subset of data):
+*Sum of all data points / number of data points = Mean*
+$$\bar{x} = \frac{1}{n}\sum_{i=1}^{n} x_i$$
+
+##### 1a: Demonstrate  that your function produces the same result as `mean()` on a numeric vector of your choice.
+```{r Q1a, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+mean_func_1 <- function(x){
+  sum(x) / length(x)
+}
+
+# Test self-built function
+values <- c(4, 8, 15, 16, 23, 42)
+mean_func_1(values)
+
+# Test R built-in function
+mean(values)
+
+all.equal(mean_func_1(values), mean(values))   # TRUE
+```
+
+##### 1b: Extend your function to handle NA values with an optional `na.rm` argument (analogous to mean(..., na.rm=TRUE)). Demonstrate that it handles NA values correctly. Briefly explain, in your own words, why your loop-based function and R's built-in mean() are expected to agree. 
+
+seq_along() generates a sequence of consecutive integers from 1 up to the length of the input object. It is essentially a safer, cleaner shorthand for writing 1:length(x).
+```{r Q1b, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+mean_func_2 <- function(x){
+  total <- 0
+  count <- 0
+  for (i in seq_along(x)) {
+    if (!is.na(x[i])) {
+      total <- total + x[i]
+      count <- count + 1
+    }
+  }
+  total / count
+}
+
+
+# Test self-built function
+mean_func_2(c(8, 4, NA, 6))
+
+# Test R built-in function
+mean(c(8, 4, NA, 6))                 # NA
+mean(c(8, 4, NA, 6), na.rm = TRUE)   # 6
+
+```
+
+##### 1c: Connect to the course’s **DuckDB repository (Week 1 Part 3)** and choose one numeric, non-gene-expression variable from a clinical or survey table, for example a vital sign or lab value from MIMIC-III, or a demographic or exam measurement from NHANES. Use **DBI::dbListTables()/DESCRIBE** to confirm the table and column actually exist and are numeric before proceeding, exactly as demonstrated in the Part 3 notes. Pull that column with a DuckDB SQL query, and demonstrate that your function correctly computes its mean, comparing your result to mean(..., na.rm=TRUE) on the same column.
+
+```{r, Q1c1, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+#install.packages("remotes")
+#remotes::install_github("brendangongol/repoquet")
+library(repoquet)
+library(DBI)
+
+# Connect to the repository already built in ~/repoquet_quick_example
+cfg <- load_repository_config("~/repoquet_quick_example/repository_config.R")
+TempDirPath <- file.path(cfg$FormattedDBPath, "duckdb_temp")
+con <- open_duckdb(FormattedDBPath = cfg$FormattedDBPath, DBName = cfg$DBName,
+                   TempDirPath = TempDirPath, GB = cfg$DuckDB_GB, ReadOnly = TRUE)
+```
+
+
+``` {r Q1c2, eval=FALSE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+#### 1c: DuckDB repository -> numeric clinical variable -> mean check ####
+
+# Create the course repository (quick profile)
+public_example <- generate_real_world_repository(
+  dir          = file.path(getwd(), "repoquet_quick_example"),
+  profile      = "quick",
+  IncludeLarge = NULL,
+  Download     = FALSE,
+  overwrite    = TRUE)
+
+cfg   <- load_repository_config(public_example$ConfigPath)
+paths <- RepositoryInitialize(cfg$FormattedDBPath)
+RunId <- new_repository_run_id()
+MDT   <- openxlsx::read.xlsx(public_example$MDTPath, sheet = "Sheet1")
+
+# Drop the ClinVar file (its server blocks the download; not needed for 1c)
+MDT    <- MDT[!grepl("gene_specific_summary", MDT$Path), ]
+DBLoad <- sort(unique(MDT$Database))
+
+ValidateMDTPreflight(MDT = MDT, strict = TRUE, logStatus = TRUE,
+                     ParquetBasePath = paths$ParquetBasePath,
+                     MaxFileStemTruncate = TRUE, TerminalHivePartition = FALSE,
+                     MasterDBPath = cfg$MasterDBPath,
+                     LogPath = paths$LogPath, RunId = RunId)
+
+# Download (or reuse cached) files and point MDT at them
+MDT <- MaterializeRemoteSources(MDT = MDT,
+                                DownloadCachePath = paths$DownloadCachePath,
+                                Offline = isTRUE(cfg$RemoteOffline),
+                                DefaultDownloadPolicy = cfg$DownloadPolicy %||% "if_missing",
+                                TimeoutSeconds = cfg$DownloadTimeout %||% 10800,
+                                Strict = FALSE,
+                                LogPath = paths$LogPath, RunId = RunId)
+
+# Survey the files and set column types
+PrepareSchemaRegistry(MDT = MDT, DBLoad = DBLoad,
+                      MasterDBPath = cfg$MasterDBPath,
+                      ObservationPath = paths$SchemaObservationPath,
+                      SchemaReviewPath = paths$SchemaReviewPath,
+                      n_workers = cfg$SchemaWorkers,
+                      SourceFingerprintMode = cfg$SourceFingerprintMode,
+                      SchemaSurveyMode = cfg$SchemaSurveyMode,
+                      FastReadMaxBytes = cfg$SchemaFastReadMaxBytes,
+                      SchemaChunkSize = cfg$SchemaChunkSize,
+                      AdaptiveSampleRows = cfg$SchemaAdaptiveSampleRows,
+                      FutureGlobalsMaxSizeMB = cfg$SchemaFutureGlobalsMaxSizeMB,
+                      ReuseObservationCache = FALSE,
+                      StrictReaders = FALSE,
+                      SchemaRegistryPath = paths$SchemaRegistryPath,
+                      SchemaProfile = "generic",
+                      LogPath = paths$LogPath, RunId = RunId)
+
+FinalizeSchemaRegistry(SchemaReviewPath = paths$SchemaReviewPath,
+                       TableSchemaPath = paths$TableSchemaPath, strict = TRUE)
+
+# Convert the files to Parquet
+result <- ParquetBackEndCreate(MDT = MDT, DBLoad = DBLoad,
+                               MasterDBPath = cfg$MasterDBPath,
+                               completed_checkpoint = load_checkpoint(paths$CheckpointPath),
+                               CheckpointPath = paths$CheckpointPath,
+                               ParquetBasePath = paths$ParquetBasePath,
+                               LogPath = paths$LogPath,
+                               n_workers = cfg$n_workers,
+                               PartitionBy = cfg$PartitionBy,
+                               RAMThreshold = cfg$RAMThreshold,
+                               SAV_ROW_THRESHOLD = cfg$SAV_ROW_THRESHOLD,
+                               SAV_CHUNK_SIZE = cfg$SAV_CHUNK_SIZE,
+                               MaxFileStemTruncate = TRUE, TerminalHivePartition = FALSE,
+                               SchemaRegistryPath = paths$SchemaRegistryPath,
+                               TableSchemaPath = paths$TableSchemaPath,
+                               ManifestPath = paths$ManifestPath,
+                               MetadataWorkbookPath = paths$ManifestWorkbookPath,
+                               UseSchemaCatalog = TRUE, StrictPreflight = TRUE,
+                               StrictSchemaValidation = TRUE, RunPreflight = FALSE,
+                               DownloadCachePath = paths$DownloadCachePath,
+                               MaterializeRemote = FALSE,
+                               SourceFingerprintMode = cfg$SourceFingerprintMode,
+                               MaxCoerceNAPct = cfg$MaxCoerceNAPct,
+                               AutoCleanup = TRUE, CleanupAfterPhase = "database",
+                               StopOnFileError = TRUE, ReturnRunResult = TRUE,
+                               RunId = RunId)
+
+# Connect to DuckDB and register the tables
+TempDirPath <- file.path(cfg$FormattedDBPath, "duckdb_temp")
+dir.create(TempDirPath, recursive = TRUE, showWarnings = FALSE)
+con <- open_duckdb(FormattedDBPath = cfg$FormattedDBPath, DBName = cfg$DBName,
+                   TempDirPath = TempDirPath, GB = cfg$DuckDB_GB, ReadOnly = FALSE)
+
+done <- MDT[checkpoint_completed_mask(MDT, result$checkpoint,
+                                      MasterDBPath = cfg$MasterDBPath,
+                                      SourceFingerprintMode = cfg$SourceFingerprintMode), ]
+register_parquet_view_compile(con = con,
+                              ParquetBasePath = paths$ParquetBasePath,
+                              tables_written = unique(repository_table_names(done)),
+                              TableSchemaPath = paths$TableSchemaPath,
+                              SchemaRegistryPath = paths$SchemaRegistryPath,
+                              validate = TRUE, strict_validation = TRUE,
+                              LogPath = paths$LogPath, RunId = RunId)
+
+#### 1c: NHANES age -> mean check ####
+
+# Confirm the table exists
+DBI::dbListTables(con)                                   # look for "NHANES_DEMO"
+
+# Confirm the column exists and is numeric
+DBI::dbGetQuery(con, 'DESCRIBE "NHANES_DEMO"')           # RIDAGEYR (age in years) should be DOUBLE or INTEGER
+
+# Pull the column with SQL
+age <- DBI::dbGetQuery(con, 'SELECT RIDAGEYR FROM "NHANES_DEMO"')$RIDAGEYR
+length(age)                                              # should be 11933
+
+# Compare your mean function with mean(..., na.rm = TRUE)
+mean_func_2(age)
+mean(age, na.rm = TRUE)
+all.equal(mean_func_2(age), mean(age, na.rm = TRUE))
+```
+
+##### 1d: Using the same repository, choose either (i) two continuous variables from the same table and test whether they are correlated `(cor.test())`, or (ii) one continuous variable and one two-level grouping variable and compare the groups with a two-sample t-test `(t.test())`. State your null and alternative hypotheses, report the test statistic and p-value, and interpret the result in plain language: what does it suggest about the relationship between the two variables, and what does it not establish (e.g., causation)? This is meant to be a first, modest exposure to hypothesis testing on biomedical data; the methods used here will be developed more formally later in the course.
+
+```{r Q1d, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+#### 1d: Correlation: age vs family income-to-poverty ratio (NHANES) ####
+
+# Confirm the table exists
+DBI::dbListTables(con)                                   # look for "NHANES_DEMO"
+
+# Confirm both columns exist and are numeric
+DBI::dbGetQuery(con, 'DESCRIBE "NHANES_DEMO"')           # RIDAGEYR and INDFMPIR should be DOUBLE or INTEGER
+
+# Pull both columns with SQL
+age_income <- DBI::dbGetQuery(con, 'SELECT RIDAGEYR, INDFMPIR FROM "NHANES_DEMO"')
+nrow(age_income)
+sum(complete.cases(age_income))                          # participants with both values
+
+# Correlation test (Pearson; incomplete pairs are dropped automatically)
+cor.test(age_income$RIDAGEYR, age_income$INDFMPIR)
+
+# Visual check
+plot(age_income$RIDAGEYR, age_income$INDFMPIR,
+     pch = 19, col = rgb(0, 0, 1, 0.15),
+     main = "Age vs family income-to-poverty ratio (NHANES 2021-2023)",
+     xlab = "Age (years)", ylab = "Family income-to-poverty ratio")
+abline(lm(INDFMPIR ~ RIDAGEYR, data = age_income), col = "red", lwd = 2)
+
+
+dbDisconnect(con, shutdown = TRUE)
+```
+
+**Hypotheses**
+H₀: There is no linear correlation between age and family income-to-poverty ratio (ρ = 0).
+H₁: There is a linear correlation between age and family income-to-poverty ratio (ρ ≠ 0).
+
+**Results**
+Among the 9,892 NHANES 2021–2023 participants with both values recorded, Pearson’s correlation was r = 0.157 (95% CI 0.138 to 0.176), t = 15.84, df = 9,890, p < 2.2 × 10⁻¹⁶.
+
+**Interpretation**
+We reject the null hypothesis. There is a statistically significant positive correlation between age and family income-to-poverty ratio: older participants tend to live in households with somewhat higher income relative to the poverty line. However, the relationship is weak. An r of 0.157 means age accounts for only about 2.5% of the variation in income-to-poverty ratio (r² ≈ 0.025), which matches the scatterplot, where points are widely spread around a gently rising line. The very small p-value mainly reflects the large sample size: with almost 10,000 people, even a weak association is detected with high confidence.
+
+**What this does not establish**
+This result does not show that getting older causes higher income. Both could be linked through other factors such as career stage, accumulated savings, education or household composition. Pearson’s r also captures only linear association; it cannot tell us whether the relationship levels off or reverses at older ages. Finally, the analysis does not use NHANES survey weights, so it describes this sample rather than producing estimates for the US population.
+
+### Question 2
+Download a dataset form GEO using the GEODataDownload function introduced in Week 1 Part 3. Choose any dataset from the example list in the notes or find one of your own. Then perform the following:
+
+##### 2a: Download the dataset and save the result to your working directory as a plain text file (.txt or .csv). Reload it from that file and confirm the dimensions match the original object. Do not open or save this file in Excel at any point: Excel auto-corrects entries it recognizes as dates, and several gene symbols (e.g. SEPT1, MARCH1, DEC1) are silently rewritten as dates (1-Sep, 1-Mar, 1-Dec) the moment the file is opened, even if you do not save it, which corrupts the gene identifiers without any visible warning.
+
+```{r Q2a1, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+# BiocManager::install("DESeq2")
+# BiocManager::install("limma")
+# install.packages("data.table")
+# install.packages("DT")
+library(DT)
+```
+
+```{r Q2a2, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+#### One-time install of the human gene annotation package ####
+if (!requireNamespace("org.Hs.eg.db", quietly = TRUE)) BiocManager::install("org.Hs.eg.db")
+
+#### GEODataDownload function ####
+GEODataDownload <- function(DS, gpl, gsm, PlateAnnotInfo, GenerateMetaData, Technology){
+  library(DESeq2); library(limma); library(data.table)
+  if(Technology == "Array"){
+    gset <- getGEO(DS)
+    if(length(gset) > 1) idx <- grep(gpl, attr(gset, "names")) else idx <- 1
+    gset <- gset[[idx]]
+    fvarLabels(gset) <- make.names(fvarLabels(gset))
+    comp <- gsub(" ", "", gsm)
+    comp <- gsub(",", "", comp)
+    gsms <- paste0(comp)
+    #### Set up raw names ####
+    sml <- c()
+    for(i in 1:nchar(gsms)){ sml[i] <- substr(gsms,i,i)}
+    ex <- exprs(gset)
+    qx <- as.numeric(quantile(ex, c(0., 0.25, 0.5, 0.75, 0.99, 1.0), na.rm=T))
+    LogC <- (qx[5] > 100) ||
+      (qx[6]-qx[1] > 50 && qx[2] > 0) ||
+      (qx[2] > 0 && qx[2] < 1 && qx[4] < 2)
+    if(LogC){ ex[which(ex <= 0)] <- NaN
+    exprs(gset) <- log2(ex) }
+    sml <- paste("G", sml, sep="")
+    f1 <- as.factor(sml)
+    gset$description2 <- f1
+    design <- model.matrix(~description2 + 0, gset)
+    colnames(design) <- levels(f1)
+    fit <- lmFit(gset, design)
+    cont.matrix <- makeContrasts(G1-G0, levels = design)
+    fit2 <- contrasts.fit(fit, cont.matrix)
+    fit2 <- eBayes(fit2, 0.01)
+    tT <- topTable(fit2, adjust="fdr", sort.by = "B", number = 25000000000)
+    #### subset ####
+    ex2 <- data.table(subset(tT, select=c("ID", "logFC", "P.Value", "adj.P.Val")))
+    ex2$ID <- as.character(ex2$ID)
+    #### annotate with gene names ####
+    plat <- PlateAnnotInfo[GPLID == gpl,][,!"GPLID", with = FALSE]
+    if(nrow(plat) == 0){ print(paste("There is no annotation information available for", gpl)) }
+    plat$ID <- as.character(plat$ID)
+    plat <- plat[!duplicated(plat$ID),]
+    ex2 <- merge(plat, ex2, by = "ID")
+    ex2$ID <- as.character(ex2$ID)
+    exraw <- data.table(ex)
+    exraw$ID <- as.character(rownames(ex))
+    #### annotate raw data with gene names ####
+    ex2 <- merge(ex2, exraw, by = "ID")
+    #### Generate Meta Data ####
+    Pdat <- pData(gset)
+    #### Add Meta data ####
+    Pdat <- as.data.table(Pdat)
+    return(list(Data = ex2, MetaData = Pdat))
+  }
+
+  if(Technology == "RNAseq"){
+    ACC <- paste("acc=", DS, sep = "")
+    file <- paste("file=", DS, "_raw_counts_GRCh38.p13_NCBI.tsv.gz", sep = "")
+    comp <- gsub(" ", "", gsm)
+    comp <- gsub(",", "", comp)
+    gsms <- paste0(comp)
+    #### Set up DEG names ####
+    urld <- "https://www.ncbi.nlm.nih.gov/geo/download/?format=file&type=rnaseq_counts"
+    path <- paste(urld, ACC, file, sep="&");
+    tbl <- as.matrix(data.table::fread(path, header=T, colClasses="integer"), rownames="GeneID")
+    exraw <- tbl
+    #### Gene annotation from org.Hs.eg.db (counts GeneIDs are NCBI/Entrez IDs) ####
+    ids <- rownames(tbl)
+    annot <- data.frame(
+      GeneID      = as.integer(ids),
+      Symbol      = unname(AnnotationDbi::mapIds(org.Hs.eg.db::org.Hs.eg.db, keys = ids,
+                                                 keytype = "ENTREZID", column = "SYMBOL",
+                                                 multiVals = "first")),
+      Description = unname(AnnotationDbi::mapIds(org.Hs.eg.db::org.Hs.eg.db, keys = ids,
+                                                 keytype = "ENTREZID", column = "GENENAME",
+                                                 multiVals = "first")),
+      stringsAsFactors = FALSE
+    )
+    rownames(annot) <- ids
+    sml <- strsplit(gsms, split="")[[1]]
+    sel <- which(sml != "X")
+    sml <- sml[sel]
+    tbl <- tbl[ ,sel]
+    gs <- factor(sml)
+    groups <- make.names(c("Ctrl", "Tx"))
+    levels(gs) <- groups
+    sample_info <- data.frame(Group = gs, row.names = colnames(tbl))
+    keep <- rowSums( tbl >= 10 ) >= min(table(gs))
+    tbl <- tbl[keep, ]
+    ds <- DESeqDataSetFromMatrix(countData=tbl, colData=sample_info, design= ~Group)
+    ds <- DESeq(ds, test="Wald", sfType="poscount")
+    r <- results(ds, contrast=c("Group", groups[2], groups[1]), alpha=0.05, pAdjustMethod ="fdr")
+    tT <- r[order(r$padj)[1:length(r$padj)],]
+    tT <- merge(as.data.frame(tT), annot, by=0, sort=F)
+    tT <- subset(tT, select=c("GeneID","padj","pvalue","lfcSE","stat","log2FoldChange","baseMean","Symbol","Description"))
+    #### subset ####
+    ex2 <- data.table(subset(tT, select=c("GeneID", "Symbol", "Description", "log2FoldChange", "pvalue", "padj")))
+    #### Adjust column names ####
+    setnames(ex2, c("GeneID", "Symbol", "Description"), c("ENTREZID", "SYMBOL", "GENENAME"))
+    #### Get Raw data ####
+    GeneID <- as.integer(rownames(exraw))
+    exraw <- as.data.table(exraw)
+    #### Update column names ####
+    exraw$ENTREZID <- GeneID
+    #### merge FC and raw data together ####
+    mer <- merge(ex2, exraw, by = "ENTREZID")
+    return(mer)
+  }
+}
+
+```
+
+
+```{r Q2a3, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+RNAseqData <- GEODataDownload(DS = "GSE266550",
+                              gpl = "GPL18573",
+                              gsm = "1011101100",
+                              PlateAnnotInfo = "Only needed if the data was generated using MicroArrays",
+                              GenerateMetaData = "Only needed if the data was generated using MicroArrays",
+                              Technology = "RNAseq")
+
+#### 2a: Save, reload and check dimensions ####
+data.table::fwrite(RNAseqData, "GSE266550_RNAseqData.txt", sep = "\t")
+RNAseqData_reloaded <- data.table::fread("GSE266550_RNAseqData.txt", sep = "\t")
+dim(RNAseqData)
+dim(RNAseqData_reloaded)
+identical(dim(RNAseqData), dim(RNAseqData_reloaded))
+
+
+datatable(head(as.data.frame(RNAseqData),10), filter = 'top', options = list(pageLength = 10, scrollX = TRUE, scrollY = "400px", autoWidth = TRUE))
+
+```
+
+
+##### 2b: Add a column to the loaded data frame called Subset_Comparison containing a character string that describes the treatment vs. control comparison that was made (e.g., "Treatment-Control"). Explain why annotating results tables in this way is useful when combining multiple differential expression analyses.
+
+```{r Q2a4, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+#### 2b: Annotate the comparison ####
+RNAseqData_reloaded$Subset_Comparison <- "Treatment-Control"
+
+# Check the new column
+dim(RNAseqData_reloaded)            # now 17867 x 18
+head(RNAseqData_reloaded$Subset_Comparison)
+
+
+```
+
+**Q2b Explanation**
+
+Annotating each results table with a Subset_Comparison column records which comparison produced the results directly in the data. When multiple differential expression analyses are combined into one table, rows from different comparisons share the same gene IDs and column names, so without this label they become indistinguishable. The label makes it possible to filter or group results by comparison, compare the same gene across different conditions, and interpret the direction of the fold change correctly, since “Treatment-Control” indicates that positive values mean higher expression in the treatment group. It also keeps the results traceable after they are saved, shared or reloaded, instead of relying on file names or memory. Finally, with nearly 18,000 rows per analysis, adding the label programmatically in R is quick and consistent, which becomes increasingly important as more comparisons are combined.
+
+##### 2c: Calculate the average expression level for each sample (column) in the raw expression portion of the downloaded data. Visualize the per-sample averages using:
+ 
+      - Histogram
+      - Boxplot
+      - Stripchart
+      - Dotchart
+      - Sorted in ascending order (line or point plot)
+      
+```{r Q2c, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+#### 2c: Average expression per sample ####
+# Raw expression columns are the sample columns (GSM IDs)
+sample_cols <- grep("^GSM", names(RNAseqData), value = TRUE)
+raw_expr <- as.data.frame(RNAseqData)[, sample_cols]
+
+sample_means <- colMeans(raw_expr, na.rm = TRUE)
+sample_means
+
+# Histogram
+hist(sample_means,
+     main = "Distribution of per-sample average expression",
+     xlab = "Average raw count", col = "lightblue")
+
+# Boxplot
+boxplot(sample_means,
+        main = "Per-sample average expression",
+        ylab = "Average raw count", col = "lightgreen")
+
+# Stripchart
+stripchart(sample_means, method = "jitter", pch = 19, col = "darkblue",
+           main = "Per-sample average expression",
+           xlab = "Average raw count")
+
+# Dotchart
+dotchart(sample_means,
+         main = "Average expression by sample",
+         xlab = "Average raw count", pch = 19)
+
+# Sorted in ascending order
+sorted_means <- sort(sample_means)
+plot(sorted_means, type = "b", pch = 19, xaxt = "n",
+     main = "Per-sample average expression (ascending)",
+     xlab = "", ylab = "Average raw count")
+axis(1, at = seq_along(sorted_means), labels = names(sorted_means), las = 2, cex.axis = 0.7)
+
+
+```
+
+##### 2d: Calculate the average expression level for gene (row). Visualize per-gene averages using:
+      - Histogram
+      - Boxplot
+      - Sorted in ascending order
+
+
+```{r Q2d, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+#### 2d: Average expression per gene ####
+sample_cols <- grep("^GSM", names(RNAseqData), value = TRUE)
+raw_expr <- as.data.frame(RNAseqData)[, sample_cols]
+
+gene_means <- rowMeans(raw_expr, na.rm = TRUE)
+names(gene_means) <- RNAseqData$SYMBOL
+summary(gene_means)
+
+# Histogram (log scale, since a few genes have huge counts)
+hist(log2(gene_means + 1), breaks = 50,
+     main = "Distribution of per-gene average expression",
+     xlab = "log2(average raw count + 1)", col = "lightblue")
+
+# Boxplot
+boxplot(log2(gene_means + 1),
+        main = "Per-gene average expression",
+        ylab = "log2(average raw count + 1)", col = "lightgreen")
+
+# Sorted in ascending order
+sorted_gene_means <- sort(gene_means)
+plot(log2(sorted_gene_means + 1), type = "l", lwd = 2,
+     main = "Per-gene average expression (ascending)",
+     xlab = "Genes ranked by average expression",
+     ylab = "log2(average raw count + 1)")
+
+```
+
+
+##### 2e: Identify the five genes with the highest average expression and the five with the lowest average expression. Report their names and average expression values, and plot the distribution of expression levels for each of these ten genes across all samples using boxplots side by side.
+
+
+```{r Q2e, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+#### 2e: Top 5 and bottom 5 genes by average expression ####
+gene_labels <- ifelse(is.na(RNAseqData$SYMBOL),
+                      as.character(RNAseqData$ENTREZID), RNAseqData$SYMBOL)
+
+ord <- order(gene_means)
+low5_idx  <- head(ord, 5)                 # 5 lowest
+high5_idx <- rev(tail(ord, 5))            # 5 highest, largest first
+
+# Report names and average expression
+top_bottom <- data.frame(
+  Group      = rep(c("Highest", "Lowest"), each = 5),
+  SYMBOL     = gene_labels[c(high5_idx, low5_idx)],
+  GENENAME   = RNAseqData$GENENAME[c(high5_idx, low5_idx)],
+  AvgCount   = round(gene_means[c(high5_idx, low5_idx)], 2),
+  row.names  = NULL
+)
+top_bottom
+
+# Expression of the 10 genes across all samples
+sel_idx  <- c(low5_idx, high5_idx)
+sel_expr <- t(raw_expr[sel_idx, ])        # rows = samples, columns = genes
+colnames(sel_expr) <- gene_labels[sel_idx]
+
+par(mar = c(7, 5, 4, 2))                  # extra bottom margin for labels
+boxplot(log2(sel_expr + 1), las = 2,
+        col = rep(c("lightblue", "salmon"), each = 5),
+        main = "5 lowest vs 5 highest expressed genes",
+        ylab = "log2(raw count + 1)")
+legend("topleft", fill = c("lightblue", "salmon"),
+       legend = c("Lowest 5", "Highest 5"), bty = "n")
+par(mar = c(5, 4, 4, 2))                  # reset margins
+
+```
+
+
+##### 2f: Create a volcano plot of the differential expression results (log2 fold change on the x-axis, −log10 adjusted p-value on the y-axis) using ggplot2. Color points by significance (adjusted p-value < 0.05) and fold change magnitude (|log2FC| > 1). Add horizontal and vertical reference lines. Describe how to interpret a volcano plot and what the colored points represent biologically.
+
+```{r Q2f, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+#### 2f: Volcano plot ####
+library(ggplot2)
+
+volcano_df <- as.data.frame(RNAseqData)
+volcano_df <- volcano_df[!is.na(volcano_df$padj), ]     # DESeq2 sets padj = NA for some genes
+
+volcano_df$negLog10Padj <- -log10(volcano_df$padj)
+
+volcano_df$Category <- "Not significant"
+volcano_df$Category[volcano_df$padj < 0.05 & abs(volcano_df$log2FoldChange) <= 1] <- "Significant, |log2FC| <= 1"
+volcano_df$Category[volcano_df$padj < 0.05 & volcano_df$log2FoldChange >  1] <- "Up in treatment"
+volcano_df$Category[volcano_df$padj < 0.05 & volcano_df$log2FoldChange < -1] <- "Down in treatment"
+
+table(volcano_df$Category)   # how many genes in each group
+
+ggplot(volcano_df, aes(x = log2FoldChange, y = negLog10Padj, color = Category)) +
+  geom_point(alpha = 0.6, size = 1.2) +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed") +
+  geom_vline(xintercept = c(-1, 1), linetype = "dashed") +
+  scale_color_manual(values = c("Not significant"            = "grey70",
+                                "Significant, |log2FC| <= 1" = "orange",
+                                "Up in treatment"            = "red",
+                                "Down in treatment"          = "blue")) +
+  labs(title = "Volcano plot: GSE266550 (Treatment vs Control)",
+       x = "log2 fold change (Treatment / Control)",
+       y = "-log10 adjusted p-value",
+       color = NULL) +
+  theme_minimal()
+
+```
+##### 2g: Create an MA plot (average expression on the x-axis, log2 fold change on the y-axis) using ggplot2. Color significantly differentially expressed genes (adjusted p-value < 0.05). Describe how to interpret an MA plot and how it differs from a volcano plot.
+
+```{r Q2g, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+#### 2g: MA plot ####
+#library(ggplot2)
+
+sample_cols <- grep("^GSM", names(RNAseqData), value = TRUE)
+
+ma_df <- as.data.frame(RNAseqData)
+ma_df$AvgExpr <- rowMeans(ma_df[, sample_cols], na.rm = TRUE)
+
+ma_df$Significance <- "Not significant"
+ma_df$Significance[!is.na(ma_df$padj) & ma_df$padj < 0.05 & ma_df$log2FoldChange > 0] <- "Up in treatment"
+ma_df$Significance[!is.na(ma_df$padj) & ma_df$padj < 0.05 & ma_df$log2FoldChange < 0] <- "Down in treatment"
+
+table(ma_df$Significance)
+
+ggplot(ma_df, aes(x = log10(AvgExpr + 1), y = log2FoldChange, color = Significance)) +
+  geom_point(alpha = 0.6, size = 1.2) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  scale_color_manual(values = c("Not significant"   = "grey70",
+                                "Up in treatment"   = "red",
+                                "Down in treatment" = "blue")) +
+  labs(title = "MA plot: GSE266550 (Treatment vs Control)",
+       x = "log10(average raw count + 1)",
+       y = "log2 fold change (Treatment / Control)",
+       color = NULL) +
+  theme_minimal()
+```
+
+
+### Question 3
+Build a SummarizedExperiment object using the GEO dataset downloaded in Question 2 and perform the following:
+
+##### 3a: Construct the SummarizedExperiment with at minimum two assay matrices (e.g., raw expression and a normalized or log-transformed version), row metadata containing at least the fold change and adjusted p-value from the differential expression analysis, and column metadata containing at least the sample group labels (treatment vs. control).
+
+
+```{r Q3a, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+#### 3a: Build a SummarizedExperiment ####
+library(SummarizedExperiment)
+
+# Samples used in the DE analysis (first 10, matching the gsm string)
+gsm_codes   <- strsplit("1011101100", split = "")[[1]]
+sample_cols <- grep("^GSM", names(RNAseqData), value = TRUE)
+ColNames    <- sample_cols[seq_along(gsm_codes)]
+RowNames    <- as.character(RNAseqData$ENTREZID)
+
+# Assay 1: raw counts
+countMat <- as.matrix(as.data.frame(RNAseqData)[, ColNames])
+dimnames(countMat) <- list(RowNames, ColNames)
+
+# Assay 2: log2 counts per million (library-size normalised)
+log2CPMMat <- log2(t(t(countMat) / colSums(countMat)) * 1e6 + 1)
+
+# Row data: gene info + DE results (row names must match the matrices)
+rowDat <- data.frame(SYMBOL         = RNAseqData$SYMBOL,
+                     GENENAME       = RNAseqData$GENENAME,
+                     log2FoldChange = RNAseqData$log2FoldChange,
+                     padj           = RNAseqData$padj,
+                     row.names      = RowNames)
+
+# Column data: group labels (row names must match the matrix column names)
+colDat <- data.frame(Group     = ifelse(gsm_codes == "1", "Treatment", "Control"),
+                     row.names = ColNames)
+
+# Assemble
+se <- SummarizedExperiment(assays  = list(counts = countMat, log2CPM = log2CPMMat),
+                           rowData = rowDat,
+                           colData = colDat)
+se
+colData(se)
+head(rowData(se))
+```
+
+##### 3b: Verify that the row and column names are consistent across all components before construction.
+
+```{r Q3b, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+#### 3b: Verify names are consistent before construction ####
+
+# Row names: genes must match across both assays and rowData
+identical(rownames(countMat), rownames(log2CPMMat))   # assay 1 vs assay 2
+identical(rownames(countMat), rownames(rowDat))       # assays vs row metadata
+
+# Column names: samples must match across both assays and colData
+identical(colnames(countMat), colnames(log2CPMMat))   # assay 1 vs assay 2
+identical(colnames(countMat), rownames(colDat))       # assays vs column metadata
+
+# Dimensions line up
+dim(countMat)                                         # 17867 x 10
+dim(log2CPMMat)                                       # 17867 x 10
+nrow(rowDat) == nrow(countMat)                        # one rowData row per gene
+nrow(colDat) == ncol(countMat)                        # one colData row per sample
+
+# No duplicate gene IDs (row names must be unique)
+anyDuplicated(rownames(countMat)) == 0
+
+# Stop with an error if anything fails
+stopifnot(
+  identical(rownames(countMat), rownames(log2CPMMat)),
+  identical(rownames(countMat), rownames(rowDat)),
+  identical(colnames(countMat), colnames(log2CPMMat)),
+  identical(colnames(countMat), rownames(colDat)),
+  anyDuplicated(rownames(countMat)) == 0
+)
+```
+
+
+##### 3c: Demonstrate subsetting the SummarizedExperiment by:
+
+      - Selecting only the treatment samples using the column metadata.
+      - Selecting only significantly differentially expressed genes (adjusted p-value < 0.05) using the row metadata.
+      - Combining both filters simultaneously.
+
+```{r Q3c, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+#### 3c: Subsetting the SummarizedExperiment ####
+
+# 1. Treatment samples only (filter columns using colData)
+se_tx <- se[, colData(se)$Group == "Treatment"]
+se_tx
+colData(se_tx)                       # 6 samples, all Treatment
+
+# 2. Significant genes only (filter rows using rowData)
+sig_genes <- !is.na(rowData(se)$padj) & rowData(se)$padj < 0.05
+se_sig <- se[sig_genes, ]
+se_sig
+head(rowData(se_sig))                # every padj < 0.05
+
+# 3. Both filters at once
+se_sig_tx <- se[sig_genes, colData(se)$Group == "Treatment"]
+se_sig_tx
+dim(se_sig_tx)                       # significant genes x 6 treatment samples
+
+# Quick checks
+table(colData(se_sig_tx)$Group)                      # only Treatment
+all(rowData(se_sig_tx)$padj < 0.05)                  # TRUE
+head(assay(se_sig_tx, "counts"))                     # counts for the subset
+
+```
+##### 3d: Access the raw expression values for the top 5 differentially expressed genes (by adjusted p-value) across all samples from the SummarizedExperiment object and display them as a formatted table.
+
+```{r Q3d, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+#### 3d: Raw counts for the top 5 DE genes ####
+
+# Rank genes by adjusted p-value (NAs go last) and take the top 5
+top5_idx <- head(order(rowData(se)$padj, na.last = TRUE), 5)
+se_top5  <- se[top5_idx, ]
+
+# Raw expression values from the counts assay
+top5_counts <- assay(se_top5, "counts")
+
+# Build a table: gene info + padj + counts for every sample
+top5_table <- data.frame(
+  SYMBOL = rowData(se_top5)$SYMBOL,
+  padj   = signif(rowData(se_top5)$padj, 3),
+  top5_counts,
+  check.names = FALSE
+)
+
+# Formatted table
+knitr::kable(top5_table, row.names = FALSE,
+             caption = "Raw counts for the top 5 differentially expressed genes (by adjusted p-value)")
+
+```
+
+
+##### 3e: Explain in your own words why SummarizedExperiment objects are preferable to storing expression matrices, row annotations, and sample annotations as separate data frames. Under what circumstances would you choose this structure over a simple data frame?
+
+A SummarizedExperiment keeps the expression matrices, the gene annotations (rowData) and the sample annotations (colData) in one object and ties them together by their row and column names. When stored as separate data frames, nothing guarantees they stay aligned: if one table is sorted, filtered or subset and the others are not, rows can silently end up attached to the wrong gene or sample, and R gives no error. With a SummarizedExperiment, the structure is checked when the object is built, and any later subsetting applies to every component at once. In 3c, a single line such as se[sig_genes, Group == "Treatment"] filtered both assays, the fold changes and the sample labels together, and the 41 genes kept their correct annotations without any extra work.
+
+It also makes multiple versions of the data easy to manage. Raw counts and log2 CPM values sit side by side as assays with identical dimensions, so switching between them is as simple as assay(se, "counts") or assay(se, "log2CPM"), with no risk that the two matrices drift out of sync. Because SummarizedExperiment is the standard Bioconductor container, the object can also be passed directly to many analysis packages (DESeq2 builds on the same structure), and other people can understand and reuse it.
+
+This assignment showed why alignment matters. The raw data contained 11 samples but the group string described only 10, which went unnoticed until building the SummarizedExperiment forced the sample annotations to match the matrix columns.
+
+I would choose a SummarizedExperiment when working with high-dimensional omics data that has measurements across many features and samples with metadata on both, when there are several related assays (raw, normalised, transformed), or when the data will be subset repeatedly, passed into Bioconductor tools, or shared. A simple data frame is better suited to small, flat datasets with one observation per row, such as a final table of top genes for a report, quick exploratory work, or data headed for general tools like ggplot2 or Excel-style summaries, where the extra structure adds overhead without much benefit.
+
+
+### Question 4
+
+The SummarizedExperiment built in Question 3 stores genes as rows and samples as columns, the standard convention for expression data. Most general-purpose statistical learning tools, including the methods in *An Introduction to Statistical Learning, * expect the opposite: one row per observation (sample), one column per feature, plus an outcome column.
+
+##### 4a: Explain why Bioconductor objects orient data with genes as rows and samples as columns, and why statistical learning functions instead expect a samples × features layout. What would happen if you handed lm() or a typical machine learning function your expression matrix in its original orientation?
+
+**Why Bioconductor uses genes × samples**
+
+Bioconductor objects such as SummarizedExperiment store expression data with genes (features) as rows and samples as columns. This convention comes from how genomic data is produced and analysed: a single experiment measures tens of thousands of genes but only a handful of samples. My GSE266550 data, for example, is 17,867 genes × 10 samples. Most genomic analyses work one gene at a time across samples. Differential expression tools like DESeq2 and limma fit a separate model for each row, so a gene-per-row layout matches the computation. It also keeps the annotation tidy: rowData holds one row of information per gene (symbol, fold change, adjusted p-value), and colData holds one row per sample (treatment or control). The two metadata tables line up naturally with the rows and columns of the assay matrices. It also keeps the long dimension vertical, since a table with 17,867 columns would be impractical to view or annotate.
+
+**Why statistical learning expects samples × features**
+
+Statistical learning functions such as lm(), glm(), or the machine learning functions in caret, randomForest and glmnet follow the general statistics convention that each row is an observation (a sample or patient) and each column is a variable measured on it. In a predictive model, the samples are the units we learn from and the genes are the features or predictors. A model learns patterns across observations, so it needs observations as rows.
+
+**What happens with the original orientation**
+
+Handing lm() or a machine learning function the matrix as genes × samples would treat the 17,867 genes as observations and the 10 samples as predictor variables. In most cases the function would run without any error, which is what makes the mistake dangerous: it would fit a model that predicts one gene’s expression from the expression in each sample, a question that is biologically meaningless. Any coefficients, p-values or accuracy scores would look like valid output while answering the wrong question. Functions that need sample-level labels, such as a treatment or control outcome, would usually fail instead, because the 10 labels would not match the 17,867 rows.
+
+The fix is to transpose the matrix with t(), for example t(assay(se, "log2CPM")), so that samples become rows and genes become columns before passing it to a modelling function. Even then, genomic data creates a second problem: with far more features than samples (p ≫ n), ordinary lm() cannot estimate a unique coefficient for every gene and returns NA for most of them. That is why genomic prediction usually relies on feature selection or regularised methods such as lasso and ridge regression.
+
+
+##### 4b*: Write a function (choose your own name) that performs a correlation analysis between a single gene’s expression values and a metadata variable stored in your Question 3 SummarizedExperiment. Your function should accept, at minimum: the SummarizedExperiment object, the gene’s identifier, the name of the metadata variable, and an argument stating whether that variable should be pulled from colData() or rowData(). Internally, your function should extract the gene’s expression values with assay(), extract the requested metadata variable from the specified source, check that the two can actually be compared (matching length, appropriate numeric type) before attempting anything, stopping with an informative error message if they cannot, and, only if that check passes, run cor.test() and return the correlation estimate and p-value.
+
+```{r Q41, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+library(repoquet)
+library(DBI)
+library(SummarizedExperiment)
+
+cfg <- load_repository_config("~/repoquet_quick_example/repository_config.R")
+TempDirPath <- file.path(cfg$FormattedDBPath, "duckdb_temp")
+con <- open_duckdb(FormattedDBPath = cfg$FormattedDBPath, DBName = cfg$DBName,
+                   TempDirPath = TempDirPath, GB = cfg$DuckDB_GB, ReadOnly = TRUE)
+```
+
+```{r Q4b2, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+#### 4b: Correlate one gene's expression with a metadata variable ####
+gene_meta_cor <- function(se, gene, variable, source = c("colData", "rowData"), assay_name = "log2CPM") {
+  source <- match.arg(source)
+  if (!gene %in% rownames(se)) gene <- rownames(se)[match(gene, rowData(se)$SYMBOL)]   # allow symbol or Entrez ID
+  if (is.na(gene)) stop("Gene not found in rownames or rowData()$SYMBOL.")
+  meta_df <- if (source == "colData") colData(se) else rowData(se)
+  if (!variable %in% names(meta_df)) stop("'", variable, "' not found in ", source, "().")
+  expr <- assay(se, assay_name)[gene, ]
+  meta <- meta_df[[variable]]
+  if (length(meta) != length(expr))
+    stop("Length mismatch: gene has ", length(expr), " values (one per sample) but ",
+         source, "$", variable, " has ", length(meta), ".")
+  if (!is.numeric(meta)) stop(source, "$", variable, " is ", class(meta)[1], ", not numeric.")
+  ct <- cor.test(expr, meta)
+  c(estimate = unname(ct$estimate), p.value = ct$p.value)
+}
+
+# Add a numeric sample-level variable to test with: library size (total reads per sample)
+colData(se)$LibSize <- colSums(assay(se, "counts"))
+
+# Valid comparison
+gene_meta_cor(se, "BICDL1", "LibSize", source = "colData")
+
+# Checks that should stop with informative errors
+tryCatch(gene_meta_cor(se, "BICDL1", "Group", "colData"), error = function(e) conditionMessage(e))  # not numeric
+tryCatch(gene_meta_cor(se, "BICDL1", "padj",  "rowData"), error = function(e) conditionMessage(e))  # length mismatch
+```
+
+###### 4b1: Demonstrate your function working correctly using a variable from colData() (for example, a numeric encoding of the sample group).
+
+```{r Q4b_1, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+#### 4b1: colData example: gene vs numeric group encoding ####
+colData(se)$GroupNum <- as.numeric(colData(se)$Group == "Treatment")   # Control = 0, Treatment = 1
+colData(se)[, c("Group", "GroupNum")]                                   # check the encoding
+
+gene_meta_cor(se, "BICDL1", "GroupNum", source = "colData")
+```
+
+
+###### 4b2: Now call your function using a variable from rowData() (for example, the gene’s own log2 fold change or adjusted p-value) for that same single gene. What happens, and why? Referring back to your answer in part (a), explain why a single gene’s per-sample expression values cannot be meaningfully correlated against a per-gene metadata value the same way they can against a per-sample one, and confirm that your function’s error-handling catches this rather than silently returning a number that looks valid but isn’t.
+
+```{r Q4b_2, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+#### 4b2: rowData example: gene vs its own per-gene metadata ####
+tryCatch(gene_meta_cor(se, "BICDL1", "log2FoldChange", source = "rowData"),
+         error = function(e) conditionMessage(e))
+
+```
+
+The two inputs describe different units. Following the genes × samples layout from part (a), a single gene’s row in the assay holds one expression value for each of the 10 samples, so it varies across samples. A rowData variable such as log2 fold change or adjusted p-value holds one value for each gene, so it varies across genes. Correlation needs paired observations: each expression value must be matched with a metadata value measured on the same sample. colData provides exactly that, one value per sample, which is why the GroupNum comparison in 4b1 works. rowData cannot, because it has no per-sample values to pair with.
+
+Even taking only BICDL1’s own fold change does not help. That is a single number summarising the gene across all samples (in fact, it was computed from these same expression values), and one number cannot be correlated with 10. Correlation requires two variables that both vary across the same set of observations.
+
+The function’s length check catches this before cor.test() runs. That matters because a mismatch will not always cause an obvious failure. If the object happened to contain exactly as many genes as samples, for example after subsetting to 10 genes, the lengths would match, and without careful checks R would pair sample 1’s expression with gene 1’s fold change, sample 2’s with gene 2’s, and so on, returning a correlation and p-value that look valid but compare unrelated things. Checking the input before analysing it prevents a confident-looking but meaningless result.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+1 executing `rmarkdown::render()` in the Console will knit the markdown file to a pdf or html document.  
+
+
+
+More information about R Markdown can be found [here](https://bookdown.org/yihui/rmarkdown-cookbook/).
+
+More information about integrating python engine into R Markdown can be found [here](https://rstudio.github.io/reticulate/articles/r_markdown.html).
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
