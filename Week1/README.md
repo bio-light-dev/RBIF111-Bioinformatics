@@ -1,6 +1,7 @@
 # RBIF-111 Week 1 Homework
 
 **Author:** Coddie Curry  
+**Repository:** [github.com/bio-light-dev/RBIF111-Bioinformatics/tree/main/Week1](https://github.com/bio-light-dev/RBIF111-Bioinformatics/tree/main/Week1)  
 **Files:** `HW1-Week-1.Rmd` (source), `HW1-Week-1.html` (knitted report)
 
 Week 1 covers programming fundamentals in R, getting open-source biomedical data (GEO, MIMIC-III, NHANES), and storing it in data containers (DuckDB, SummarizedExperiment).
