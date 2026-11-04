@@ -1,6 +1,6 @@
 # RBIF-111: Applied Statistics for Bioinformatics
 
-**Author:** Your Name · [LinkedIn](https://linkedin.com/in/your-profile) · [GitHub](https://github.com/bio-light-dev)
+**Author:** Your Name · [LinkedIn](https://www.linkedin.com/in/coddie-curry/) · [GitHub](https://github.com/bio-light-dev)
 
 Assignments and analyses completed for RBIF-111, an applied statistics course using R. The work covers descriptive and inferential statistics, data structures and programming fundamentals, and statistical methods commonly used in biological research: t-tests, Mann-Whitney, chi-squared and Fisher's exact tests, correlation and regression, ANOVA, and principal component analysis (PCA).
 
