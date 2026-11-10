@@ -1,0 +1,1085 @@
+---
+title: Rmarkdown introduction
+author: "Author: Coddie Curry"
+date: "Last update: `r format(Sys.time(), '%d %B, %Y')`" 
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+    fig_caption: yes
+    code_folding: hide
+    number_sections: true
+  pdf_document:
+    toc: true
+vignette: >
+    %\VignetteIndexEntry{Text}
+    %\usepackage[utf8]{inputenc}
+    %\VignetteEngine{knitr::rmarkdown}
+fontsize: 15pt
+editor_options: 
+  chunk_output_type: console
+---
+
+<style>
+pre code, pre, code {
+  white-space: pre !important;
+  overflow-x: auto !important;
+  word-break: keep-all !important;
+  word-wrap: initial !important;
+}
+body {
+text-align: justify}
+</style>
+
+
+# RBIF-111 Week 2 Homework
+
+### Question 1
+
+Using simulation based on `rnorm`, study the performance of the "unbiased" estimator of standard deviation (using **n** - 1 in the denominator) and two nearest "alternatives that use **n** or **n** - 2 in the denominator instead:
+
+- Go over samples ranging in size from 2 to 20.
+
+- For  each sample size **n**, draw multiple (say, **N** = 1000) samples of that size from a normal distribution with zero mean and standard deviation of one.
+
+- For each such sample calculate **(a)** the standard deviation within the sample, **(b)** a biased `sd` alternative that uses **n** instead of **n** - 1 in the denominator, **(c)** an `sd` alternative that uses **n** -2 in the denominator (write functions, if needed, to calculate what you need).
+
+- At this point, for each sample you have three estimators calculated; let’s call them `s`, `s.n`, `s.n.1`. Remember that they are functions of the (random) sample they are calculated for, and hence they are random variables themselves. We want to know how well each of them approximates the true underlying standard deviation (which we happen to know, because we simulate by drawing from a known, defined distribution). To accomplish this, calculate the mean and spread of each of these three standard deviation estimates across all *N* samples for the current sample size *n*.
+
+- Plot the calculated means and spreads of all three estimators of the standard deviation as functions of sample size *n*, observe how they approach the standard deviation of the underlying distribution (we know it is 1, since this is what we used to generate the data!), and describe your observations in plain English. (**Hints**: the R function points may prove useful; remember also that you can use plot with parameter type="n" to create a blank plot of the size required for the data to fit, and then add data series one at a time using points.)
+
+```{r Q1, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+#### Question 1: performance of sd estimators with n-1, n and n-2 denominators ####
+###################################################################################
+
+#### Set up looping numbers ####
+###############################
+max.sample.size <- 20   # largest sample size we will test (n goes from 2 to 20)
+n.sim <- 1000           # number of re-sampling(s) that will be run for each sample size
+
+set.seed(111)           # make the random draws reproducible
+
+#### Helper functions for the three sd estimators ####
+######################################################
+# All three use the same sum of squared deviations from the sample mean;
+# they differ only in the denominator.
+
+# (a) classical "unbiased" sd: divides by (n - 1). Same result as R's sd().
+sd.classic <- function(x) {
+  sqrt(sum((x - mean(x))^2) / (length(x) - 1))
+}
+
+# (b) biased alternative: divides by n
+sd.over.n <- function(x) {
+  sqrt(sum((x - mean(x))^2) / length(x))
+}
+
+# (c) alternative that divides by (n - 2).
+# For n = 2 the denominator is 0, so we return NA instead of Inf.
+sd.over.n.2 <- function(x) {
+  n <- length(x)
+  if (n <= 2) return(NA)
+  sqrt(sum((x - mean(x))^2) / (n - 2))
+}
+
+#### Set up matrices to save data. First matrix provided by the instructor ####
+###############################################################################
+# Rows = simulation number (1..n.sim), columns = sample size (1..max.sample.size).
+# Column 1 is never filled (a sample of size 1 has no spread), so it stays 0.
+sd.ori <- matrix(0, nrow = n.sim, ncol = max.sample.size)   # (a) s,     1/sqrt(n-1)
+sd.n   <- matrix(0, nrow = n.sim, ncol = max.sample.size)   # (b) s.n,   1/sqrt(n)
+sd.n.2 <- matrix(0, nrow = n.sim, ncol = max.sample.size)   # (c) s.n.2, 1/sqrt(n-2)
+
+#### perform computations in a loop ####
+########################################
+for (sample.size in 2:max.sample.size) {        # outer loop: each sample size n
+  for (i.sim in 1:n.sim) {                      # inner loop: resample n.sim times
+    # Draw a new random sample of size n from N(0, 1); the true sd is 1
+    x <- rnorm(sample.size, mean = 0, sd = 1)
+
+    # (a) classical sd, saved in row i.sim, column sample.size
+    x.sd <- sd.classic(x)
+    sd.ori[i.sim, sample.size] <- x.sd
+
+    # (b) and (c): the two alternatives for the SAME sample
+    sd.n[i.sim, sample.size]   <- sd.over.n(x)
+    sd.n.2[i.sim, sample.size] <- sd.over.n.2(x)
+  }
+}
+
+#### Once all sd's are calculated, look at the sample statistics for their distributions. ####
+##############################################################################################
+# For each sample size (each column), take the mean and the standard deviation
+# ("spread") of the n.sim estimates. apply(..., 2, ...) works column by column.
+# Column 1 is dropped because it was never filled.
+sizes <- 2:max.sample.size
+
+# (a) classical estimator, 1/sqrt(n-1)
+sd.ori.mean <- apply(sd.ori[, sizes], 2, mean)
+sd.ori.sd   <- apply(sd.ori[, sizes], 2, sd)
+
+# (b) estimator with 1/sqrt(n)
+sd.n.mean <- apply(sd.n[, sizes], 2, mean)
+sd.n.sd   <- apply(sd.n[, sizes], 2, sd)
+
+# (c) estimator with 1/sqrt(n-2) (NA for n = 2, so it stays NA in the summary)
+sd.n.2.mean <- apply(sd.n.2[, sizes], 2, mean)
+sd.n.2.sd   <- apply(sd.n.2[, sizes], 2, sd)
+
+# One table so the three estimators can be compared side by side
+sd.summary <- data.frame(
+  n        = sizes,
+  mean.ori = sd.ori.mean,  sd.ori = sd.ori.sd,
+  mean.n   = sd.n.mean,    sd.n   = sd.n.sd,
+  mean.n.2 = sd.n.2.mean,  sd.n.2 = sd.n.2.sd
+)
+print(round(sd.summary, 4))
+
+#### Plot means and spreads as functions of sample size ####
+############################################################
+cols <- c("black", "red", "blue")   # (a) classical, (b) n, (c) n-2
+pchs <- c(19, 17, 15)
+leg  <- c("n-1 (classical)", "n", "n-2")
+
+par(mfrow = c(1, 2))   # two panels side by side
+
+# Panel 1: mean of each estimator, with vertical bars showing mean +/- 1 sd (the spread).
+# The three series are shifted slightly left/right so their bars don't overlap.
+offset <- c(-0.2, 0, 0.2)
+all.low  <- c(sd.ori.mean - sd.ori.sd, sd.n.mean - sd.n.sd, sd.n.2.mean - sd.n.2.sd)
+all.high <- c(sd.ori.mean + sd.ori.sd, sd.n.mean + sd.n.sd, sd.n.2.mean + sd.n.2.sd)
+
+# type = "n" draws an empty plot big enough to fit all the data
+plot(range(sizes) + c(-0.5, 0.5), range(c(all.low, all.high), na.rm = TRUE), type = "n",
+     xlab = "Sample size (n)", ylab = "sd estimate",
+     main = "Mean +/- spread of sd estimators")
+abline(h = 1, lty = 2)   # true population sd
+
+means <- list(sd.ori.mean, sd.n.mean, sd.n.2.mean)
+sds   <- list(sd.ori.sd,   sd.n.sd,   sd.n.2.sd)
+for (k in 1:3) {
+  xk <- sizes + offset[k]
+  # spread bars: mean - sd to mean + sd
+  segments(xk, means[[k]] - sds[[k]], xk, means[[k]] + sds[[k]], col = cols[k])
+  # add the means one series at a time with points()
+  points(xk, means[[k]], pch = pchs[k], col = cols[k], type = "b")
+}
+legend("topright", legend = c(leg, "true sd = 1"),
+       col = c(cols, "black"), pch = c(pchs, NA), lty = c(1, 1, 1, 2), bty = "n", cex = 0.8)
+
+# Panel 2: the spread (sd of the estimates) on its own, to compare precision directly
+plot(range(sizes), range(c(sd.ori.sd, sd.n.sd, sd.n.2.sd), na.rm = TRUE), type = "n",
+     xlab = "Sample size (n)", ylab = "sd of the estimates",
+     main = "Spread of sd estimators")
+for (k in 1:3) {
+  points(sizes, sds[[k]], pch = pchs[k], col = cols[k], type = "b")
+}
+legend("topright", legend = leg, col = cols, pch = pchs, lty = 1, bty = "n", cex = 0.8)
+
+par(mfrow = c(1, 1))   # reset the layout
+
+#### Observations from the plot ####
+####################################
+# (Exact values vary slightly with the random seed; the pattern is what matters.)
+#
+# Left panel (means +/- spread):
+# - All three curves start away from the dashed line at sd = 1 for small samples
+#   and move toward it as n grows. By n = 20 they are all close to 1.
+# - The classical n-1 curve (black) sits just below the line: about 0.8 at n = 2,
+#   rising to about 0.99 at n = 20. So even the "unbiased" estimator slightly
+#   underestimates the sd. Dividing by n-1 makes the variance unbiased, but taking
+#   the square root brings back a small downward bias.
+# - The n curve (red) is always the lowest, starting around 0.56 at n = 2 and
+#   still only about 0.96 at n = 20. It underestimates the sd the most.
+# - The n-2 curve (blue) lies above the line, starting around 1.25 at n = 3 and
+#   coming down to about 1.01 at n = 20, so it overestimates. It has no point at
+#   n = 2 because it cannot be computed there.
+# - The vertical bars are long for small n and much longer than the gaps between
+#   the three curves. With a small sample, any single estimate is very uncertain,
+#   whichever denominator you use.
+#
+# Right panel (spread only):
+# - The spread of all three estimators falls steadily as n grows, from roughly
+#   0.4-0.65 at small n to about 0.16 at n = 20.
+# - At every n the order is the same: the n version has the smallest spread and
+#   the n-2 version the largest, because the three estimators are the same quantity
+#   multiplied by slightly different constants.
+# - As n gets larger, the three curves in both panels draw together. For large
+#   samples the choice of denominator hardly matters.
+
+
+```
+
+### Question 2
+
+- For a normal distribution with an arbitrarily chosen mean and variance (e.g., 2 and 3), draw two samples of different sizes (e.g. 5 and 7), calculate the difference between the samples’ means, and also the p-value of a t-test run on the same two samples.
+
+- Then repeat this a large number of times (e.g. *N*=104). From the differences between means obtained in those re-samplings, **(1)** calculate the brute-force p-value of each of those *N* differences, using the rank of that particular difference among all *N* differences obtained in the simulation (similar to what was done in class: after 10K re-samplings you already have 10K differences observed; **(2)** rank each particular difference in this list against the others: for instance, if the difference is second largest in the whole set, **(3)** then only once out of 10000 trials was a larger difference observed, so the one-sided p-value determined from such a brute-force simulation is 2/10000).
+
+- Plot:
+  **a.** the distribution of differences observed in all re-samplings
+  **b.** the distribution of t-test p-values obtained for the pairs of samples in each re-samplings
+  **c.** the distribution of brute-force p-values obtained for the pairs of samples in each re-sampling
+  **d.** a scatter plot of t-test p-values versus the differences between the means in each pair of samples drawn
+  **e.** a scatter plot of brute-force p-values versus the differences between the means (in this scatter-plot, each point should represent a single re-sampling experiment, x-axis = difference, y-axis = p-value)
+  **f.** a scatter-plot of t-test p-values vs brute-force p-values
+  
+  **Hint**: mind the difference between one-sided and two-sided tests! It does not matter whether you choose one-sided or two-sided, but you have to be consistent in your comparison of the t-test vs brute-force resampling.
+
+```{r Q2, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+#### Parameters ####
+set.seed(222)      # reproducible random draws
+mu    <- 2         # mean of the normal distribution
+sigma <- sqrt(3)   # sd = sqrt(variance); the variance is 3
+n1    <- 5         # size of sample 1
+n2    <- 7         # size of sample 2
+N     <- 10^4      # number of re-samplings
+
+#### Step 1: create a matrix containing the re-samplings (10,000 rows for the simulations and 12 columns for the re-samplings).
+# Each row is one re-sampling experiment: columns 1..n1 are sample 1,
+# columns (n1+1)..(n1+n2) are sample 2. Both samples come from the SAME
+# distribution, so the null hypothesis (equal means) is true in every row.
+sim.matrix <- matrix(rnorm(N * (n1 + n2), mean = mu, sd = sigma),
+                     nrow = N, ncol = n1 + n2)
+
+#### Step 2: define a function that will calculate the difference between the means of sample 1 and sample 2 in our representation of the data such as:
+mean.diff <- function(x) mean(x[1:n1]) - mean(x[(n1 + 1):(n1 + n2)])
+
+#### Step 3: calculate the difference in the means for all rows of your matrix. Save it in an object called sim.diff.
+# apply(..., 1, ...) runs mean.diff on each row
+sim.diff <- apply(sim.matrix, 1, mean.diff)
+
+#### t-test p-value for the same pair of samples in each row ####
+# Two-sided test, to match the two-sided brute-force p-value in Step 4.
+# var.equal = TRUE (Student's t-test) because both samples share the same
+# variance by construction.
+t.test.p <- function(x) {
+  t.test(x[1:n1], x[(n1 + 1):(n1 + n2)], var.equal = TRUE)$p.value
+}
+sim.p.t <- apply(sim.matrix, 1, t.test.p)
+
+#### Step 4: calculate the brute force p-value by taking the rank of the negative absolute value of sim.diff divided by the length of sim.diff. Save this in a vector called sim.p.rk
+# -abs() gives the largest |difference| rank 1, the second largest rank 2, etc.
+# Dividing by N turns a rank into the fraction of re-samplings with a difference
+# at least as extreme in EITHER direction, i.e. a two-sided p-value.
+# Example: the 2nd largest |difference| gets p = 2/10000.
+sim.p.rk <- rank(-abs(sim.diff)) / length(sim.diff)
+
+# Quick check: the first few rows of each result side by side
+head(data.frame(diff = sim.diff, p.t = sim.p.t, p.brute = sim.p.rk))
+
+
+#### Plots a-f in a 2 x 3 grid ####
+par(mfrow = c(2, 3), mar = c(4, 4, 2.5, 1))
+
+# a. distribution of differences between the means in all re-samplings
+hist(sim.diff, breaks = 50, col = "grey80", border = "white",
+     main = "a. Differences in means", xlab = "mean(sample 1) - mean(sample 2)")
+
+# b. distribution of t-test p-values
+hist(sim.p.t, breaks = 50, col = "grey80", border = "white",
+     main = "b. t-test p-values", xlab = "p-value")
+
+# c. distribution of brute-force p-values
+hist(sim.p.rk, breaks = 50, col = "grey80", border = "white",
+     main = "c. Brute-force p-values", xlab = "p-value")
+
+# d. t-test p-values vs differences between the means (one point = one re-sampling)
+plot(sim.diff, sim.p.t, pch = ".", col = "blue",
+     main = "d. t-test p vs difference", xlab = "Difference in means", ylab = "t-test p-value")
+
+# e. brute-force p-values vs differences between the means
+plot(sim.diff, sim.p.rk, pch = ".", col = "red",
+     main = "e. Brute-force p vs difference", xlab = "Difference in means", ylab = "Brute-force p-value")
+
+# f. t-test p-values vs brute-force p-values, with the y = x line for reference
+plot(sim.p.rk, sim.p.t, pch = ".",
+     main = "f. t-test p vs brute-force p", xlab = "Brute-force p-value", ylab = "t-test p-value")
+abline(0, 1, col = "red", lty = 2)
+
+par(mfrow = c(1, 1))   # reset the layout
+
+```
+
+### Question 3
+
+Using `rnorm`, create two samples that result in insignificant t-test p-vale, but represent two very different processes (**Hint**: if one sample comes from a standard normal distribution, mean zero, sd of one, and another comes from the union of two normal distributions with means symmetrically mirrored on each side of zero, e.g. -10 and 10, then both distributions will have means equal to zero.)
+
+**a.** Plot the two distributions you have some up with.
+**b.** Repeat the following multiple times: draw one sample from each of the two distributions you chose, calculate the t-test p-value between such two samples. Plot the resulting distribution of p-values obtained across multiple trials, consider what bit tells us and how consistent it is with what exactly the t-test is testing for. Describe the results.
+
+
+```{r Q3, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+#### Question 3: two very different processes that a t-test cannot tell apart ####
+##################################################################################
+set.seed(333)   # reproducible random draws
+
+#### Define the two processes ####
+##################################
+# Process A: standard normal, mean 0, sd 1
+draw.A <- function(n) rnorm(n, mean = 0, sd = 1)
+
+# Process B: an equal mix of N(-10, 1) and N(10, 1).
+# For each value, sample() picks -10 or 10 with probability 1/2 (which "hump"
+# the value comes from), then rnorm() adds sd-1 noise around that centre.
+# The two humps mirror each other around 0, so the mean of B is also 0,
+# even though B almost never produces values near 0.
+draw.B <- function(n) sample(c(-10, 10), n, replace = TRUE) + rnorm(n, mean = 0, sd = 1)
+
+n <- 100   # size of each sample
+
+# One pair of samples, to show the t-test result for a single comparison
+x.A <- draw.A(n)
+x.B <- draw.B(n)
+t.test(x.A, x.B)   # Welch t-test (R's default), since the variances are very different
+
+#### a. Plot the two distributions ####
+#######################################
+# Use large samples so the density curves show the true shape of each process
+big.A <- draw.A(10^5)
+big.B <- draw.B(10^5)
+dens.A <- density(big.A)
+dens.B <- density(big.B)
+
+par(mfrow = c(1, 2), mar = c(4, 4, 2.5, 1))
+
+# Empty plot sized to fit both curves, then add each curve
+plot(range(c(dens.A$x, dens.B$x)), range(c(dens.A$y, dens.B$y)), type = "n",
+     xlab = "Value", ylab = "Density", main = "a. The two distributions")
+lines(dens.A, col = "blue", lwd = 2)
+lines(dens.B, col = "red",  lwd = 2)
+abline(v = 0, lty = 2)   # both distributions have mean 0
+# Show the single samples drawn above as tick marks along the bottom
+rug(x.A, col = "blue")
+rug(x.B, col = "red")
+legend("topright", legend = c("A: N(0, 1)", "B: mix of N(-10, 1) and N(10, 1)", "mean = 0"),
+       col = c("blue", "red", "black"), lty = c(1, 1, 2), lwd = c(2, 2, 1), bty = "n", cex = 0.7)
+
+#### b. Repeat many times and look at the distribution of t-test p-values ####
+##############################################################################
+n.trials <- 10^4
+p.values <- numeric(n.trials)   # vector to store one p-value per trial
+
+for (i in 1:n.trials) {
+  s.A <- draw.A(n)                          # new sample from process A
+  s.B <- draw.B(n)                          # new sample from process B
+  p.values[i] <- t.test(s.A, s.B)$p.value   # two-sided Welch t-test
+}
+
+hist(p.values, breaks = 50, col = "grey80", border = "white",
+     main = "b. t-test p-values, A vs B", xlab = "p-value")
+abline(v = 0.05, col = "red", lty = 2)   # usual significance cut-off
+
+par(mfrow = c(1, 1))   # reset the layout
+
+# Fraction of trials that came out "significant" at the 0.05 level
+mean(p.values < 0.05)
+
+#### Description of the results ####
+####################################
+# (Exact values vary slightly with the random seed; the pattern is what matters.)
+#
+# a. The two processes look nothing alike. A is a single hump centred on 0.
+#    B is two separate humps at -10 and +10, with almost no values near 0. Its
+#    spread is also far larger (sd about 10 vs 1). Still, both have a mean of 0.
+#
+# b. The p-values are spread roughly evenly (uniformly) between 0 and 1, and
+#    only about 5% of trials fall below 0.05. That is exactly what we expect when
+#    the null hypothesis is true and the "significant" results are just chance
+#    false positives.
+#
+#    This is consistent with what the t-test tests: whether the two population
+#    MEANS are equal. Here they are equal, so the t-test correctly finds no
+#    difference, trial after trial. It is not built to detect differences in
+#    shape, spread or number of peaks, so it is blind to how different these two
+#    processes are.
+#
+#    The lesson: a non-significant t-test does not mean that two samples come from
+#    the same process. It only means we found no evidence that their means differ.
+#    Plotting the data, or using a test that compares whole distributions (such as
+#    the Kolmogorov-Smirnov test, ks.test), would show the difference right away.
+```
+
+### Question 4
+
+Suppose a diagnostic test has a known sensitivity of 0.8 (i.e., it correctly identifies a true positive 80% of the time), and you screen **n** = 15 patients who are all, in truth, positive.
+
+**a.** By hand, using the binomial probability formula and the combinatorics (**n** choose *k*) it relies on, calculate the probability that **exactly** 10 of the 15 patients test positive. Show your work, not just the final number. (*Handwritten portion will be included in submission*)
+
+**b.** Confirm your hand calculation using `dbinom()`.
+
+
+``` {r Q4b, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+n = 15
+k = 10
+p = 0.8
+
+dbinom(k,n,p)
+
+```
+
+**c.** Calculate the probability that **at least** 10 of the 15 patients test positive, once using `pbinom()` directly, and once by summing the individual `dbinom()` probabilities for 10 through 15. Confirm the two approaches agree.
+
+```{r Q4c, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+#### Question 4c: P(at least 10 of 15 test positive), two ways ####
+####################################################################
+n <- 15     # number of patients screened
+p <- 0.8    # sensitivity = probability each true positive tests positive
+
+#### Approach 1: pbinom() directly ####
+# pbinom(9, ...) gives P(X <= 9). "At least 10" is everything else, so
+# P(X >= 10) = 1 - P(X <= 9). We use 9, not 10, because X is discrete:
+# pbinom(10, ...) would include X = 10 and drop it from the answer.
+p.at.least.10.pbinom <- 1 - pbinom(9, n, p)
+
+#### Approach 2: add up the individual dbinom() probabilities ####
+# 10:15 is the vector c(10, 11, 12, 13, 14, 15). dbinom() returns the
+# probability of each exact count, and these outcomes cannot happen together,
+# so their probabilities can be summed.
+p.each <- dbinom(10:15, n, p)
+names(p.each) <- 10:15
+round(p.each, 4)
+
+p.at.least.10.dbinom <- sum(p.each)
+
+#### Confirm the two approaches agree ####
+c(pbinom = p.at.least.10.pbinom, dbinom.sum = p.at.least.10.dbinom)
+
+# all.equal() rather than ==, because tiny floating-point rounding
+# differences could make == return FALSE even when the values match
+all.equal(p.at.least.10.pbinom, p.at.least.10.dbinom)
+
+# Both approaches give P(X >= 10) of about 0.9389: with a sensitivity of 0.8,
+# there is roughly a 94% chance that at least 10 of the 15 true positives
+# are detected.
+
+```
+
+
+**d.** Now confirm both analytic answers a third way, by simulation: draw *N* =10,000 samples of 15 patients each using `rbinom()`, calculate the proportion of those simulated samples in which at least 10 patients tested positive, and compare that proportion to your `pbinom()` answer from **part (c)**. They should be close, this is the same “simulate it, then check it against the theoretical answer” logic you already used in Questions 1 and 2, just applied to a discrete rather than a continuous distribution.
+
+``` {r Q4d, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE }
+
+set.seed(42)          # makes the random draws reproducible
+
+N <- 10000
+n <- 15
+p <- 0.8
+
+# Each element = number of positives in one simulated sample of 15 patients
+sims <- rbinom(N, size = n, prob = p)
+
+# Simulated P(X >= 10) vs analytic answer from part (c)
+sim_at_least_10  <- mean(sims >= 10)
+theor_at_least_10 <- 1 - pbinom(9, n, p)
+
+# Simulated P(X = 10) vs analytic dbinom answer
+sim_exactly_10  <- mean(sims == 10)
+theor_exactly_10 <- dbinom(10, n, p)
+
+c(sim = sim_at_least_10, theory = theor_at_least_10)
+c(sim = sim_exactly_10,  theory = theor_exactly_10)
+
+```
+
+**e.** Use `qbinom()` to find the smallest number of positive tests *k* such that𝑃(𝑋≥𝑘) ≤ 0.05, and explain in plain language what that number represents.
+
+```{r Q4e, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE }
+
+#### Question 4e: smallest k such that P(X >= k) <= 0.05 ####
+##############################################################
+n <- 15
+p <- 0.8
+
+# qbinom(0.95, ...) returns the smallest x with P(X <= x) >= 0.95.
+# P(X >= k) <= 0.05 is the same as P(X <= k - 1) >= 0.95,
+# so k - 1 is the qbinom() answer and we add 1 to get k.
+q95 <- qbinom(0.95, n, p)
+q95                    # 14
+
+k <- q95 + 1
+k                      # 15
+
+#### Check the answer with pbinom() ####
+# Upper-tail probability at k: should be <= 0.05
+1 - pbinom(k - 1, n, p)        # P(X >= 15), about 0.0352
+
+# One step lower: should be > 0.05, which shows k is the SMALLEST such value
+1 - pbinom(k - 2, n, p)        # P(X >= 14), about 0.1671
+
+#### Interpretation ####
+# If the test's sensitivity really is 0.8, getting 15 positives out of 15
+# true-positive patients happens only about 3.5% of the time. That is less than
+# 5%, so it counts as an unusually high result. Getting 14 or more is not
+# unusual: it happens about 17% of the time.
+#
+# In practice, if all 15 patients tested positive, it would be a (weak) sign
+# that the test's real sensitivity is higher than 0.8. Any result of 14 or
+# fewer fits a sensitivity of 0.8.
+#
+# Because X can only be a whole number, there is no k where the upper tail
+# is exactly 0.05. The tail jumps from 0.167 (k = 14) to 0.035 (k = 15), so
+# the real cut-off probability is 0.035, not 0.05.
+
+```
+
+### Question 5
+
+#### DuckDB repository set-up
+
+```{r Q5i, eval=FALSE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE }
+
+library(repoquet)
+
+repo_dir <- path.expand("~/repoquet_quick_example")   # fixed path, works when knitting
+cfg   <- load_repository_config(file.path(repo_dir, "repository_config.R"))
+paths <- RepositoryInitialize(cfg$FormattedDBPath)
+
+TempDirPath <- file.path(cfg$FormattedDBPath, "duckdb_temp")
+con <- open_duckdb(FormattedDBPath = cfg$FormattedDBPath, DBName = cfg$DBName,
+                   TempDirPath = TempDirPath, GB = cfg$DuckDB_GB, ReadOnly = FALSE)
+# Should show readonly = FALSE for "Repository"
+DBI::dbGetQuery(con, "SELECT database_name, readonly FROM duckdb_databases()")
+
+# Should print 5 rows of patient data
+DBI::dbGetQuery(con, 'SELECT * FROM "UCI_HEALTH_UCI519_Heart_Failure_Clinical_Records" LIMIT 5')
+
+```
+
+``` {r Q5ii, eval=FALSE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=6, fig.width=10, results='show', cache=FALSE}
+
+#### Q5: DuckDB repository -> heart failure table -> normality of each feature ####
+###################################################################################
+
+#### Build the course repository (quick profile) ####
+#####################################################
+public_example <- generate_real_world_repository(
+  dir          = file.path(getwd(), "repoquet_quick_example"),
+  profile      = "quick",
+  IncludeLarge = NULL,
+  Download     = FALSE,
+  overwrite    = TRUE)
+
+cfg   <- load_repository_config(public_example$ConfigPath)
+paths <- RepositoryInitialize(cfg$FormattedDBPath)
+RunId <- new_repository_run_id()
+MDT   <- openxlsx::read.xlsx(public_example$MDTPath, sheet = "Sheet1")
+
+# Drop the ClinVar file (its server blocks the download; not needed for Q5)
+MDT    <- MDT[!grepl("gene_specific_summary", MDT$Path), ]
+DBLoad <- sort(unique(MDT$Database))
+
+ValidateMDTPreflight(MDT = MDT, strict = TRUE, logStatus = TRUE,
+                     ParquetBasePath = paths$ParquetBasePath,
+                     MaxFileStemTruncate = TRUE, TerminalHivePartition = FALSE,
+                     MasterDBPath = cfg$MasterDBPath,
+                     LogPath = paths$LogPath, RunId = RunId)
+
+# Download (or reuse cached) files and point MDT at them
+MDT <- MaterializeRemoteSources(MDT = MDT,
+                                DownloadCachePath = paths$DownloadCachePath,
+                                Offline = isTRUE(cfg$RemoteOffline),
+                                DefaultDownloadPolicy = cfg$DownloadPolicy %||% "if_missing",
+                                TimeoutSeconds = cfg$DownloadTimeout %||% 10800,
+                                Strict = FALSE,
+                                LogPath = paths$LogPath, RunId = RunId)
+
+# Survey the files and set column types
+PrepareSchemaRegistry(MDT = MDT, DBLoad = DBLoad,
+                      MasterDBPath = cfg$MasterDBPath,
+                      ObservationPath = paths$SchemaObservationPath,
+                      SchemaReviewPath = paths$SchemaReviewPath,
+                      n_workers = cfg$SchemaWorkers,
+                      SourceFingerprintMode = cfg$SourceFingerprintMode,
+                      SchemaSurveyMode = cfg$SchemaSurveyMode,
+                      FastReadMaxBytes = cfg$SchemaFastReadMaxBytes,
+                      SchemaChunkSize = cfg$SchemaChunkSize,
+                      AdaptiveSampleRows = cfg$SchemaAdaptiveSampleRows,
+                      FutureGlobalsMaxSizeMB = cfg$SchemaFutureGlobalsMaxSizeMB,
+                      ReuseObservationCache = FALSE,
+                      StrictReaders = FALSE,
+                      SchemaRegistryPath = paths$SchemaRegistryPath,
+                      SchemaProfile = "generic",
+                      LogPath = paths$LogPath, RunId = RunId)
+
+FinalizeSchemaRegistry(SchemaReviewPath = paths$SchemaReviewPath,
+                       TableSchemaPath = paths$TableSchemaPath, strict = TRUE)
+
+# Convert the files to Parquet
+result <- ParquetBackEndCreate(MDT = MDT, DBLoad = DBLoad,
+                               MasterDBPath = cfg$MasterDBPath,
+                               completed_checkpoint = load_checkpoint(paths$CheckpointPath),
+                               CheckpointPath = paths$CheckpointPath,
+                               ParquetBasePath = paths$ParquetBasePath,
+                               LogPath = paths$LogPath,
+                               n_workers = cfg$n_workers,
+                               PartitionBy = cfg$PartitionBy,
+                               RAMThreshold = cfg$RAMThreshold,
+                               SAV_ROW_THRESHOLD = cfg$SAV_ROW_THRESHOLD,
+                               SAV_CHUNK_SIZE = cfg$SAV_CHUNK_SIZE,
+                               MaxFileStemTruncate = TRUE, TerminalHivePartition = FALSE,
+                               SchemaRegistryPath = paths$SchemaRegistryPath,
+                               TableSchemaPath = paths$TableSchemaPath,
+                               ManifestPath = paths$ManifestPath,
+                               MetadataWorkbookPath = paths$ManifestWorkbookPath,
+                               UseSchemaCatalog = TRUE, StrictPreflight = TRUE,
+                               StrictSchemaValidation = TRUE, RunPreflight = FALSE,
+                               DownloadCachePath = paths$DownloadCachePath,
+                               MaterializeRemote = FALSE,
+                               SourceFingerprintMode = cfg$SourceFingerprintMode,
+                               MaxCoerceNAPct = cfg$MaxCoerceNAPct,
+                               AutoCleanup = TRUE, CleanupAfterPhase = "database",
+                               StopOnFileError = TRUE, ReturnRunResult = TRUE,
+                               RunId = RunId)
+
+#### Connect to DuckDB and register the tables ####
+###################################################
+# ReadOnly = FALSE is required: registering the views writes to the database
+TempDirPath <- file.path(cfg$FormattedDBPath, "duckdb_temp")
+dir.create(TempDirPath, recursive = TRUE, showWarnings = FALSE)
+con <- open_duckdb(FormattedDBPath = cfg$FormattedDBPath, DBName = cfg$DBName,
+                   TempDirPath = TempDirPath, GB = cfg$DuckDB_GB, ReadOnly = FALSE)
+
+done <- MDT[checkpoint_completed_mask(MDT, result$checkpoint,
+                                      MasterDBPath = cfg$MasterDBPath,
+                                      SourceFingerprintMode = cfg$SourceFingerprintMode), ]
+register_parquet_view_compile(con = con,
+                              ParquetBasePath = paths$ParquetBasePath,
+                              tables_written = unique(repository_table_names(done)),
+                              TableSchemaPath = paths$TableSchemaPath,
+                              SchemaRegistryPath = paths$SchemaRegistryPath,
+                              validate = TRUE, strict_validation = TRUE,
+                              LogPath = paths$LogPath, RunId = RunId)
+
+#### Confirm the connection and the table used in Q5 ####
+#########################################################
+tbl <- "UCI_HEALTH_UCI519_Heart_Failure_Clinical_Records"
+
+DBI::dbListTables(con)                                       # tbl should be listed
+DBI::dbGetQuery(con, sprintf('DESCRIBE "%s"', tbl))          # column names and types
+
+#### Q5.1: normality of each feature, heart failure patients who died vs survived ####
+######################################################################################
+# Query the table from DuckDB
+dat <- DBI::dbGetQuery(con, sprintf('SELECT * FROM "%s"', tbl))
+names(dat) <- tolower(names(dat))   # make column names consistent (e.g. DEATH_EVENT -> death_event)
+str(dat)
+
+#### Choose the outcome variable ####
+# Several yes/no (0/1) columns could serve as the outcome. Count the
+# non-missing records for each and use the one with the most.
+binary.vars <- c("death_event", "anaemia", "diabetes", "high_blood_pressure", "sex", "smoking")
+sapply(dat[binary.vars], function(x) sum(!is.na(x)))
+# All are complete (same count), so we use death_event: it is the clinical
+# outcome the dataset was collected to study.
+outcome <- "death_event"
+
+# as.character() first, in case the column was stored as text or integer64
+dat[[outcome]] <- factor(as.character(dat[[outcome]]), levels = c("0", "1"),
+                         labels = c("Survived", "Died"))
+table(dat[[outcome]])
+
+#### Numeric features ####
+# "time" (follow-up period) is left out: it is part of the outcome
+# (patients who died were followed for less time), not a patient measurement.
+features <- c("age", "creatinine_phosphokinase", "ejection_fraction",
+              "platelets", "serum_creatinine", "serum_sodium")
+
+# Check how DuckDB returned each column. Some may come back as text
+# (character) or integer64, which shapiro.test() does not accept.
+sapply(dat[features], function(x) class(x)[1])
+
+# Convert all features to ordinary numbers
+dat[features] <- lapply(dat[features], function(x) as.numeric(as.character(x)))
+
+# Split into the two groups
+groups <- split(dat[features], dat[[outcome]])
+sapply(groups, nrow)
+
+#### Shapiro-Wilk p-value for every feature in each group ####
+sw.p <- sapply(groups, function(g) sapply(g, function(x) shapiro.test(x)$p.value))
+signif(sw.p, 3)
+
+#### QQ plot for every feature in each group (points on the red line = normal) ####
+for (grp in names(groups)) {
+  par(mfrow = c(2, 3), mar = c(4, 4, 2.5, 1))
+  for (f in features) {
+    qqnorm(groups[[grp]][[f]], pch = 20, cex = 0.6, main = paste(f, "-", grp))
+    qqline(groups[[grp]][[f]], col = "red")
+  }
+}
+par(mfrow = c(1, 1))   # reset the layout
+
+```
+ 
+ **a.** Perform a normality test for each numeric feature in the table. At a minimum, this should include a Shapiro-Wilk test along with a QQ plot for each feature. Describe the results.
+ 
+```{r Q5a, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=6, fig.width=10, results='show', cache=FALSE}
+
+#### Connect to the DuckDB repository built in Week 1 ####
+##########################################################
+# Knitting runs in a fresh R session, so the connection must be opened here.
+library(repoquet)
+
+repo_dir <- path.expand("~/repoquet_quick_example")   # fixed path, works when knitting
+cfg   <- load_repository_config(file.path(repo_dir, "repository_config.R"))
+paths <- RepositoryInitialize(cfg$FormattedDBPath)
+
+TempDirPath <- file.path(cfg$FormattedDBPath, "duckdb_temp")
+con <- open_duckdb(FormattedDBPath = cfg$FormattedDBPath, DBName = cfg$DBName,
+                   TempDirPath = TempDirPath, GB = cfg$DuckDB_GB, ReadOnly = FALSE)
+
+#### Q5.1: normality of each feature, heart failure patients who died vs survived ####
+######################################################################################
+tbl <- "UCI_HEALTH_UCI519_Heart_Failure_Clinical_Records"
+
+# Query the table from DuckDB
+dat <- DBI::dbGetQuery(con, sprintf('SELECT * FROM "%s"', tbl))
+names(dat) <- tolower(names(dat))   # make column names consistent (e.g. DEATH_EVENT -> death_event)
+str(dat)
+
+#### Choose the outcome variable ####
+# Several yes/no (0/1) columns could serve as the outcome. Count the
+# non-missing records for each and use the one with the most.
+binary.vars <- c("death_event", "anaemia", "diabetes", "high_blood_pressure", "sex", "smoking")
+sapply(dat[binary.vars], function(x) sum(!is.na(x)))
+# All are complete (same count), so we use death_event: it is the clinical
+# outcome the dataset was collected to study.
+outcome <- "death_event"
+
+# as.character() first, in case the column was stored as text or integer64
+dat[[outcome]] <- factor(as.character(dat[[outcome]]), levels = c("0", "1"),
+                         labels = c("Survived", "Died"))
+table(dat[[outcome]])
+
+#### Numeric features ####
+# "time" (follow-up period) is left out: it is part of the outcome
+# (patients who died were followed for less time), not a patient measurement.
+features <- c("age", "creatinine_phosphokinase", "ejection_fraction",
+              "platelets", "serum_creatinine", "serum_sodium")
+
+# Check how DuckDB returned each column. Some may come back as text
+# (character) or integer64, which shapiro.test() does not accept.
+sapply(dat[features], function(x) class(x)[1])
+
+# Convert all features to ordinary numbers
+dat[features] <- lapply(dat[features], function(x) as.numeric(as.character(x)))
+
+# Split into the two groups
+groups <- split(dat[features], dat[[outcome]])
+sapply(groups, nrow)
+
+#### Shapiro-Wilk p-value for every feature in each group ####
+sw.p <- sapply(groups, function(g) sapply(g, function(x) shapiro.test(x)$p.value))
+signif(sw.p, 3)
+
+#### QQ plot for every feature in each group (points on the red line = normal) ####
+for (grp in names(groups)) {
+  par(mfrow = c(2, 3), mar = c(4, 4, 2.5, 1))
+  for (f in features) {
+    qqnorm(groups[[grp]][[f]], pch = 20, cex = 0.6, main = paste(f, "-", grp))
+    qqline(groups[[grp]][[f]], col = "red")
+  }
+}
+par(mfrow = c(1, 1))   # reset the layout
+
+```
+ 
+**b.** Create a boxplot with each numeric column of the table on the x-axis, the value of the column on the y-axis, and colored by the outcome/grouping variable.
+
+``` {r Q5b, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=6, fig.width=10, results='show', cache=FALSE}
+
+#### Q5b: boxplot of every numeric feature, coloured by outcome ####
+####################################################################
+library(ggplot2)
+
+# Reshape to "long" format: one row per patient per feature, so that
+# the feature name can go on the x-axis and its value on the y-axis
+dat.long <- data.frame(
+  outcome = rep(dat[[outcome]], times = length(features)),
+  feature = rep(features, each = nrow(dat)),
+  value   = unlist(dat[features], use.names = FALSE))
+
+ggplot(dat.long, aes(x = feature, y = value, fill = outcome)) +
+  geom_boxplot(outlier.size = 0.8) +
+  scale_y_log10() +    # features differ by orders of magnitude; log scale keeps all visible
+  scale_fill_manual(values = c(Survived = "steelblue", Died = "firebrick")) +
+  labs(title = "Heart failure features by outcome",
+       x = "Feature", y = "Value (log10 scale)", fill = "Outcome") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+
+```
+
+**c.** Perform hypothesis tests comparing paired columns between the two groups. You will need to determine which hypothesis test is appropriate for each column based on your normality test results from part (a), rather than defaulting to a t-test for everything.
+
+``` {r Q5c, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=6, fig.width=10, results='show', cache=FALSE}
+
+#### Q5c: compare each feature between the two groups, choosing the test from part (a) ####
+###########################################################################################
+# The two groups contain different patients, so they are independent samples:
+# - normal in BOTH groups (Shapiro-Wilk p > 0.05) -> Welch's t-test (compares means)
+# - not normal in either group                  -> Wilcoxon rank-sum test (no normality assumption)
+alpha <- 0.05
+
+test.results <- data.frame()
+
+for (f in features) {
+  x.surv <- groups[["Survived"]][[f]]
+  x.died <- groups[["Died"]][[f]]
+
+  # Normality decision from the Shapiro-Wilk p-values in part (a)
+  both.normal <- all(sw.p[f, ] > alpha)
+
+  if (both.normal) {
+    test.used <- "Welch t-test"
+    p <- t.test(x.died, x.surv)$p.value
+  } else {
+    test.used <- "Wilcoxon rank-sum"
+    p <- wilcox.test(x.died, x.surv, exact = FALSE)$p.value   # exact = FALSE: data have ties
+  }
+
+  test.results <- rbind(test.results, data.frame(
+    feature         = f,
+    sw.p.survived   = signif(sw.p[f, "Survived"], 3),
+    sw.p.died       = signif(sw.p[f, "Died"], 3),
+    test            = test.used,
+    median.survived = median(x.surv),
+    median.died     = median(x.died),
+    p.value         = signif(p, 3)))
+}
+
+# Six tests at once raises the chance of a false positive, so also adjust
+# the p-values for multiple testing (Benjamini-Hochberg)
+test.results$p.adjusted  <- signif(p.adjust(test.results$p.value, method = "BH"), 3)
+test.results$significant <- test.results$p.adjusted < alpha
+
+test.results
+
+```
+
+
+### Question 6
+
+Using the same table (or a different one from your repository, your choice), select the numeric column with the greatest variance and overlap between outcome groups.
+
+**a**: Take a random sampling of the data at several different sample sizes (say, 10, 15, 20 records) from both groups, then perform the appropriate hypothesis test between the two groups (chosen the same way as in Question 5c) and retain the p-value. Repeat this process 1000 times, saving the p-values from each iteration in a vector called Pvals, and plot the resulting distribution of significance tests for each re-sampled size.
+
+```{r Q6a, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=6, fig.width=10, results='show', cache=FALSE}
+
+#### Q6a: re-sampling at different sample sizes, distribution of p-values ####
+##############################################################################
+set.seed(666)   # reproducible random sampling
+
+#### Choose the column: greatest variance AND overlap between the groups ####
+# Overlap = the groups did NOT differ significantly in Q5c.
+# Among those features, take the one with the largest variance.
+overlap.features <- test.results$feature[!test.results$significant]
+feature.var      <- sapply(dat[overlap.features], var)
+feature.var
+chosen <- names(which.max(feature.var))
+chosen
+
+x.surv <- groups[["Survived"]][[chosen]]
+x.died <- groups[["Died"]][[chosen]]
+
+#### Test chosen the same way as in Q5c ####
+# Both samples normal (Shapiro-Wilk p > 0.05) -> Welch t-test, otherwise Wilcoxon
+choose.and.test <- function(a, b, alpha = 0.05) {
+  both.normal <- shapiro.test(a)$p.value > alpha && shapiro.test(b)$p.value > alpha
+  if (both.normal) t.test(a, b)$p.value else wilcox.test(a, b, exact = FALSE)$p.value
+}
+
+#### Re-sample 1000 times at each sample size ####
+sample.sizes <- c(10, 15, 20)
+n.iter       <- 1000
+Pvals.by.size <- list()   # one Pvals vector per sample size
+
+for (n in sample.sizes) {
+  Pvals <- numeric(n.iter)                      # p-values for this sample size
+  for (i in 1:n.iter) {
+    s.surv <- sample(x.surv, n)                 # n random patients who survived
+    s.died <- sample(x.died, n)                 # n random patients who died
+    Pvals[i] <- choose.and.test(s.surv, s.died)
+  }
+  Pvals.by.size[[as.character(n)]] <- Pvals
+}
+
+#### Plot the distribution of p-values for each sample size ####
+par(mfrow = c(1, length(sample.sizes)), mar = c(4, 4, 2.5, 1))
+for (n in names(Pvals.by.size)) {
+  hist(Pvals.by.size[[n]], breaks = 20, col = "grey80", border = "white",
+       main = paste0(chosen, ": n = ", n, " per group"), xlab = "p-value")
+  abline(v = 0.05, col = "red", lty = 2)
+}
+par(mfrow = c(1, 1))
+
+# Fraction of "significant" results (p < 0.05) at each sample size
+sapply(Pvals.by.size, function(p) mean(p < 0.05))
+
+```
+
+**b**: Repeat the entire process in part (a) for the column with the least variance and overlap between outcome groups. Explain the results and the differences between the two simulations, connecting them back to what you observed about the t-test’s behavior under the null in Question 2.
+
+```{r Q6b, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=6, fig.width=10, results='show', cache=FALSE}
+
+#### Q6b: same re-sampling for the column with the least variance and overlap ####
+##################################################################################
+set.seed(667)
+
+#### Choose the column: least variance AND least overlap between the groups ####
+# Least overlap = the groups DID differ significantly in Q5c.
+# Among those features, take the one with the smallest variance.
+separated.features <- test.results$feature[test.results$significant]
+if (length(separated.features) == 0) separated.features <- features   # fallback
+feature.var.b <- sapply(dat[separated.features], var)
+feature.var.b
+chosen.b <- names(which.min(feature.var.b))
+chosen.b
+
+x.surv.b <- groups[["Survived"]][[chosen.b]]
+x.died.b <- groups[["Died"]][[chosen.b]]
+
+#### Re-sample 1000 times at each sample size (same process as part a) ####
+Pvals.by.size.b <- list()
+
+for (n in sample.sizes) {
+  Pvals <- numeric(n.iter)
+  for (i in 1:n.iter) {
+    s.surv <- sample(x.surv.b, n)
+    s.died <- sample(x.died.b, n)
+    Pvals[i] <- choose.and.test(s.surv, s.died)
+  }
+  Pvals.by.size.b[[as.character(n)]] <- Pvals
+}
+
+#### Plot the distribution of p-values for each sample size ####
+par(mfrow = c(1, length(sample.sizes)), mar = c(4, 4, 2.5, 1))
+for (n in names(Pvals.by.size.b)) {
+  hist(Pvals.by.size.b[[n]], breaks = 20, col = "grey80", border = "white",
+       main = paste0(chosen.b, ": n = ", n, " per group"), xlab = "p-value")
+  abline(v = 0.05, col = "red", lty = 2)
+}
+par(mfrow = c(1, 1))
+
+#### Compare the two simulations: fraction of p < 0.05 at each sample size ####
+sig.a <- sapply(Pvals.by.size,   function(p) mean(p < 0.05))
+sig.b <- sapply(Pvals.by.size.b, function(p) mean(p < 0.05))
+comparison <- data.frame(n = sample.sizes, high.overlap = sig.a, low.overlap = sig.b)
+names(comparison)[2:3] <- c(chosen, chosen.b)
+comparison
+
+plot(sample.sizes, sig.b, type = "b", pch = 19, col = "firebrick", ylim = c(0, 1),
+     xlab = "Sample size per group", ylab = "Fraction of p-values < 0.05",
+     main = "How often the test finds a difference")
+lines(sample.sizes, sig.a, type = "b", pch = 17, col = "steelblue")
+abline(h = 0.05, lty = 2)
+legend("topleft", legend = c(paste(chosen.b, "(little overlap)"),
+                             paste(chosen, "(large overlap)"), "0.05 level"),
+       col = c("firebrick", "steelblue", "black"), pch = c(19, 17, NA),
+       lty = c(1, 1, 2), bty = "n")
+
+
+```
+
+**c**: For each of the two columns, use power.t.test() with the effect size (difference in group means) and variance you actually observed in the data to calculate the statistical power at each of the sample sizes tested in parts (a) and (b). Compare this analytically calculated power to the proportion of your 1000 re-samplings that came back significant at that same sample size, they should track each other reasonably well. Then, for the low-signal (high-overlap) column, use power.t.test() to calculate the sample size that would be required to reach 80% power. Does that number match the intuition you developed watching the p-value distribution barely shift as sample size increased in part (a)/(b)?
+
+```{r Q6c, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=6, fig.width=10, results='show', cache=FALSE}
+
+#### Q6c: analytic power (power.t.test) vs simulated power ####
+###############################################################
+
+#### Observed effect size and spread for each column ####
+effect.stats <- function(col) {
+  a <- groups[["Survived"]][[col]]
+  b <- groups[["Died"]][[col]]
+  c(delta = abs(mean(b) - mean(a)),             # observed difference in means
+    sd    = sqrt((var(a) + var(b)) / 2))        # pooled standard deviation
+}
+stats.a <- effect.stats(chosen)     # high-overlap column (part a)
+stats.b <- effect.stats(chosen.b)   # low-overlap column (part b)
+rbind(stats.a, stats.b)
+
+# Standardised effect size (Cohen's d = delta / sd): ~0.2 small, ~0.5 medium, ~0.8 large
+c(d.a = unname(stats.a["delta"] / stats.a["sd"]),
+  d.b = unname(stats.b["delta"] / stats.b["sd"]))
+
+#### Analytic power at each sample size ####
+power.at <- function(stats, n) {
+  power.t.test(n = n, delta = stats["delta"], sd = stats["sd"], sig.level = 0.05)$power
+}
+power.a <- sapply(sample.sizes, function(n) power.at(stats.a, n))
+power.b <- sapply(sample.sizes, function(n) power.at(stats.b, n))
+
+#### Compare with the simulated power (fraction of p < 0.05) ####
+power.comparison <- data.frame(
+  n                  = sample.sizes,
+  analytic.power.a   = round(power.a, 3),
+  simulated.power.a  = round(sig.a, 3),
+  analytic.power.b   = round(power.b, 3),
+  simulated.power.b  = round(sig.b, 3))
+names(power.comparison) <- c("n",
+  paste0(chosen, ".analytic"),   paste0(chosen, ".simulated"),
+  paste0(chosen.b, ".analytic"), paste0(chosen.b, ".simulated"))
+power.comparison
+
+#### Plot analytic vs simulated power ####
+plot(sample.sizes, power.b, type = "b", pch = 19, col = "firebrick", ylim = c(0, 1),
+     xlab = "Sample size per group", ylab = "Power",
+     main = "Analytic (power.t.test) vs simulated power")
+points(sample.sizes, sig.b, type = "b", pch = 1, lty = 2, col = "firebrick")
+points(sample.sizes, power.a, type = "b", pch = 17, col = "steelblue")
+points(sample.sizes, sig.a, type = "b", pch = 2, lty = 2, col = "steelblue")
+abline(h = 0.05, lty = 3)
+legend("topleft", bty = "n", cex = 0.8,
+       legend = c(paste(chosen.b, "analytic"), paste(chosen.b, "simulated"),
+                  paste(chosen, "analytic"),   paste(chosen, "simulated")),
+       col = c("firebrick", "firebrick", "steelblue", "steelblue"),
+       pch = c(19, 1, 17, 2), lty = c(1, 2, 1, 2))
+
+#### Sample size needed for 80% power, high-overlap column ####
+n.needed <- power.t.test(delta = stats.a["delta"], sd = stats.a["sd"],
+                         sig.level = 0.05, power = 0.80)$n
+ceiling(n.needed)                  # patients needed PER GROUP
+table(dat[[outcome]])              # patients actually available in each group
+
+```
+
+#### Shutdown DuckDB
+
+```{r Extra, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=6, fig.width=10, results='show', cache=FALSE}
+
+DBI::dbDisconnect(con, shutdown = TRUE)
+
+con <- open_duckdb(FormattedDBPath = cfg$FormattedDBPath, DBName = cfg$DBName,
+                   TempDirPath = TempDirPath, GB = cfg$DuckDB_GB,
+                   ReadOnly = FALSE)    # write mode, needed to create views
+
+# then run your register_parquet_view_compile(...) line again
+
+```
+executing `rmarkdown::render()` in the Console will knit the markdown file to a pdf or html document.  
+
+
+
+More information about R Markdown can be found [here](https://bookdown.org/yihui/rmarkdown-cookbook/).
+
+More information about integrating python engine into R Markdown can be found [here](https://rstudio.github.io/reticulate/articles/r_markdown.html).
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
