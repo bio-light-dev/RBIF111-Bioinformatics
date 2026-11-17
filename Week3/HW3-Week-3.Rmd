@@ -1,0 +1,797 @@
+---
+title: "RBIF-111 Week 3 Homework: Linear Models, Smoothers and Normalization"
+author: "Author: Coddie Curry"
+date: "Last update: `r format(Sys.time(), '%d %B, %Y')`" 
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+    fig_caption: yes
+    code_folding: hide
+    number_sections: true
+  pdf_document:
+    toc: true
+vignette: >
+    %\VignetteIndexEntry{Text}
+    %\usepackage[utf8]{inputenc}
+    %\VignetteEngine{knitr::rmarkdown}
+fontsize: 15pt
+editor_options: 
+  chunk_output_type: console
+---
+
+<style>
+pre code, pre, code {
+  white-space: pre !important;
+  overflow-x: auto !important;
+  word-break: keep-all !important;
+  word-wrap: initial !important;
+}
+body {
+text-align: justify}
+</style>
+
+
+# RBIF-111 Week 3 Homework
+
+## Part A: Simulation foundations
+
+### Question 1
+
+Linear models are not necessarily linear with respect to their random variable arguments. Simulate a small dataset with two dependent variables x, y, with a built-in linear and quadratic term in the dependency of y on x. Make sure you build the dependency in a statistical sense, meaning there is some noise in the data. Fit to these data models with (1) intercept only `(y~1)`, (2) intercept and slope `(y~x)`, and (3) intercept, slope, and curvature, a quadratic term `x^2 (y~x+I(x^2))`. Assess the performance of these models when fitting your dataset.
+
+Hints: `x=1:20; y=20+10*1:20+5*(1:20)^2+rnorm(20,0,200)` would simulate such a dataset. Fit a model on such a pair of variables and see how well it fits, how well it recovers the “true” parameters you built your simulated data with, try modifying the model as in (1) to (2) to (3) above, and also assess the effect of changing the variance of the error term you built into x, y.
+
+Use the following step by step process to answer this question:
+
+- Create the simulated dataset (as suggested above).
+- Fit the three linear models described above.
+- Use the `predict()` function to obtain observed and fitted values.
+- Use the `resid()` function to obtain residual values.
+- Plot the observed and fitted data points, as well as the residual values.
+
+
+```{r Q1, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+# Part A, Question 1: linear models with a quadratic term
+# True model: y = 20 + 10*x + 5*x^2 + N(0, sd)
+
+set.seed(111)
+
+# ---- 1. Simulate the dataset ----
+x  <- 1:20
+sd_noise <- 200
+y  <- 20 + 10 * x + 5 * x^2 + rnorm(length(x), mean = 0, sd = sd_noise)
+dat <- data.frame(x = x, y = y)
+
+# ---- 2. Fit the three models ----
+m1 <- lm(y ~ 1,          data = dat)   # intercept only
+m2 <- lm(y ~ x,          data = dat)   # intercept + slope
+m3 <- lm(y ~ x + I(x^2), data = dat)   # intercept + slope + curvature
+models <- list("y ~ 1" = m1, "y ~ x" = m2, "y ~ x + I(x^2)" = m3)
+
+# ---- 3. Fitted values (predict) and residuals (resid) ----
+fitted_vals <- sapply(models, predict)
+resid_vals  <- sapply(models, resid)
+head(cbind(observed = y, fitted_vals))
+head(resid_vals)
+
+# ---- 4. Assess performance ----
+perf <- data.frame(
+  model    = names(models),
+  RSS      = sapply(models, function(m) sum(resid(m)^2)),
+  sigma    = sapply(models, sigma),                       # residual SE; truth = sd_noise
+  R2       = sapply(models, function(m) summary(m)$r.squared),
+  adj_R2   = sapply(models, function(m) summary(m)$adj.r.squared),
+  AIC      = sapply(models, AIC),
+  row.names = NULL
+)
+print(perf, digits = 4)
+
+# Nested F-tests: does each added term significantly reduce the RSS?
+anova(m1, m2, m3)
+
+# Parameter recovery for the full model (truth: 20, 10, 5)
+cbind(truth = c(20, 10, 5), coef(summary(m3))[, 1:2], confint(m3))
+
+# ---- 5. Plots: observed + fitted (top row), residuals (bottom row) ----
+cols <- c("firebrick", "darkorange", "steelblue")
+op <- par(mfrow = c(2, 3), mar = c(4, 4, 3, 1))
+
+for (i in seq_along(models)) {
+  plot(x, y, pch = 19, main = names(models)[i], xlab = "x", ylab = "y")
+  points(x, fitted_vals[, i], col = cols[i], pch = 17)
+  lines(x, fitted_vals[, i], col = cols[i], lwd = 2)
+  curve(20 + 10 * x + 5 * x^2, add = TRUE, lty = 2, col = "grey40")  # true mean
+  legend("topleft", bty = "n", cex = 0.8,
+         legend = c("observed", "fitted", "true mean"),
+         pch = c(19, 17, NA), lty = c(NA, 1, 2),
+         col = c("black", cols[i], "grey40"))
+}
+for (i in seq_along(models)) {
+  plot(x, resid_vals[, i], pch = 19, col = cols[i],
+       main = paste("Residuals:", names(models)[i]),
+       xlab = "x", ylab = "residual",
+       ylim = range(resid_vals))            # shared y-axis so panels are comparable
+  abline(h = 0, lty = 2)
+}
+par(op)
+
+# ---- 6. Effect of the noise variance ----
+# Refit the quadratic model at several noise levels, many replicates each,
+# and look at how well the true parameters (20, 10, 5) are recovered.
+sim_once <- function(sd_noise) {
+  y_sim <- 20 + 10 * x + 5 * x^2 + rnorm(length(x), 0, sd_noise)
+  fit   <- lm(y_sim ~ x + I(x^2))
+  c(coef(fit), R2 = summary(fit)$r.squared,
+    p_quad = coef(summary(fit))["I(x^2)", "Pr(>|t|)"])
+}
+
+sds <- c(10, 50, 200, 500, 1000)
+noise_summary <- t(sapply(sds, function(s) {
+  r <- replicate(1000, sim_once(s))
+  c(sd_noise       = s,
+    mean_intercept = mean(r[1, ]), sd_intercept = sd(r[1, ]),
+    mean_slope     = mean(r[2, ]), sd_slope     = sd(r[2, ]),
+    mean_quad      = mean(r[3, ]), sd_quad      = sd(r[3, ]),
+    mean_R2        = mean(r["R2", ]),
+    power_quad     = mean(r["p_quad", ] < 0.05))   # how often x^2 is detected
+}))
+print(round(noise_summary, 3))
+
+```
+
+## Part B: Applying it to real data
+
+For Questions 2-5, you will need a GEO expression dataset (RNAseq or microarray) that has a continuous phenotype or metadata variable attached to its samples, for example age, BMI, dose, or time to an event, rather than only a treatment/control grouping. Download it with the `GEODataDownload()` function from Week 1 Part 3, the same way you did for Week 1’s homework. If the dataset you already downloaded and saved in Week 1 happens to include a suitable continuous variable, you are welcome to reuse it; otherwise, pick a new GEO accession that does. You are not limited to any fixed list, choose whatever dataset you like, as long as it gives you gene-level expression values and a continuous variable to regress them against.
+
+**Note**: if you are using an array dataset, the sample metadata is generally included with the download. If you are using an RNAseq dataset, you will typically need to download the metadata separately: on the accession’s GEO page, use the “SRA Run Selector” link at the bottom of the page, then the “Metadata” download button on the page it opens.
+
+### Question 2
+
+Find the genes in your downloaded dataset with the most and the least significant effect on your chosen continuous variable. Loop through the genes in the dataset and fit a linear model for each one, using your continuous variable as the dependent variable and that gene’s expression level as the independent variable, then take an ANOVA on the fitted model and extract the p-value (e.g., `anova(lm(continuous_variable ~ expression, df)))`. Next, plot the distribution of p-values for the gene effect across all genes. Then generate diagnostic plots and present model summaries and ANOVA results for the linear models of the two extreme cases, the gene with the most and the gene with the least significant effect, as assessed by ANOVA.
+
+**Hint 1**: quantify the effect strength by statistical significance, not by the raw magnitude of the slope. Hint 2: looping ANOVA across many thousands of genes is slow; debug your code on a subset of the data, for example the first 100 genes, before running it on everything.
+
+```{r Q2a, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+#### Setup: packages, timeout, and a local cache of the GEO files ####
+if (!requireNamespace("BiocManager", quietly = TRUE)) install.packages("BiocManager")
+pkgs <- c("GEOquery", "limma", "DESeq2", "org.Hs.eg.db", "data.table", "knitr")
+missing <- pkgs[!sapply(pkgs, requireNamespace, quietly = TRUE)]
+if (length(missing)) BiocManager::install(missing)
+
+library(GEOquery); library(org.Hs.eg.db); library(data.table)
+options(timeout = 1200)                       # large GEO files need more than the default
+
+DS  <- "GSE11882"
+gpl <- "GPL570"
+
+cache_dir <- "GEOcache"                       # kept next to the Rmd, downloaded only once
+dir.create(cache_dir, showWarnings = FALSE)
+
+gse_file <- file.path(cache_dir, "GSE11882_series_matrix.txt.gz")
+if (!file.exists(gse_file) || file.size(gse_file) != 41282166) {
+  download.file("https://ftp.ncbi.nlm.nih.gov/geo/series/GSE11nnn/GSE11882/matrix/GSE11882_series_matrix.txt.gz",
+                destfile = gse_file, mode = "wb")
+}
+stopifnot(file.size(gse_file) == 41282166)          # complete file
+
+#### Week 1 Part 3: GEODataDownload() ####
+GEODataDownload <- function(DS, gpl, gsm, PlateAnnotInfo, GenerateMetaData, Technology){
+  library(DESeq2); library(limma); library(data.table)
+  if(Technology == "Array"){
+    # Read the local copy if it exists (no internet needed); otherwise download
+    gse_local <- file.path("GEOcache", paste0(DS, "_series_matrix.txt.gz"))
+    gset <- if (file.exists(gse_local)) list(getGEO(filename = gse_local, getGPL = FALSE)) else getGEO(DS)
+    if(length(gset) > 1) idx <- grep(gpl, attr(gset, "names")) else idx <- 1
+    gset <- gset[[idx]]
+    fvarLabels(gset) <- make.names(fvarLabels(gset))
+    comp <- gsub(" ", "", gsm)
+    comp <- gsub(",", "", comp)
+    gsms <- paste0(comp)
+    #### Set up raw names ####
+    sml <- c()
+    for(i in 1:nchar(gsms)){ sml[i] <- substr(gsms,i,i)}
+    ex <- exprs(gset)
+    qx <- as.numeric(quantile(ex, c(0., 0.25, 0.5, 0.75, 0.99, 1.0), na.rm=T))
+    LogC <- (qx[5] > 100) ||
+      (qx[6]-qx[1] > 50 && qx[2] > 0) ||
+      (qx[2] > 0 && qx[2] < 1 && qx[4] < 2)
+    if(LogC){ ex[which(ex <= 0)] <- NaN
+    exprs(gset) <- log2(ex) }
+    sml <- paste("G", sml, sep="")
+    f1 <- as.factor(sml)
+    gset$description2 <- f1
+    design <- model.matrix(~description2 + 0, gset)
+    colnames(design) <- levels(f1)
+    fit <- lmFit(gset, design)
+    cont.matrix <- makeContrasts(G1-G0, levels = design)
+    fit2 <- contrasts.fit(fit, cont.matrix)
+    fit2 <- eBayes(fit2, 0.01)
+    tT <- topTable(fit2, adjust="fdr", sort.by = "B", number = 25000000000)
+    #### subset ####
+    ex2 <- data.table(subset(tT, select=c("ID", "logFC", "P.Value", "adj.P.Val")))
+    ex2$ID <- as.character(ex2$ID)
+    #### annotate with gene names ####
+    plat <- PlateAnnotInfo[GPLID == gpl,][,!"GPLID", with = FALSE]
+    if(nrow(plat) == 0){ print(paste("There is no annotation information available for", gpl)) }
+    plat$ID <- as.character(plat$ID)
+    plat <- plat[!duplicated(plat$ID),]
+    ex2 <- merge(plat, ex2, by = "ID")
+    ex2$ID <- as.character(ex2$ID)
+    exraw <- data.table(ex)
+    exraw$ID <- as.character(rownames(ex))
+    #### annotate raw data with gene names ####
+    ex2 <- merge(ex2, exraw, by = "ID")
+    #### Generate Meta Data ####
+    Pdat <- pData(gset)
+    #### Add Meta data ####
+    Pdat <- as.data.table(Pdat)
+    return(list(Data = ex2, MetaData = Pdat))
+  }
+
+  if(Technology == "RNAseq"){
+    ACC <- paste("acc=", DS, sep = "")
+    file <- paste("file=", DS, "_raw_counts_GRCh38.p13_NCBI.tsv.gz", sep = "")
+    comp <- gsub(" ", "", gsm)
+    comp <- gsub(",", "", comp)
+    gsms <- paste0(comp)
+    #### Set up DEG names ####
+    urld <- "https://www.ncbi.nlm.nih.gov/geo/download/?format=file&type=rnaseq_counts"
+    path <- paste(urld, ACC, file, sep="&");
+    tbl <- as.matrix(data.table::fread(path, header=T, colClasses="integer"), rownames="GeneID")
+    exraw <- tbl
+    apath <- paste(urld, "type=rnaseq_counts", "file=Human.GRCh38.p13.annot.tsv.gz", sep="&")
+    annot <- data.table::fread(apath, header=T, quote="", stringsAsFactors=F, data.table=F)
+    rownames(annot) <- annot$GeneID
+    sml <- strsplit(gsms, split="")[[1]]
+    sel <- which(sml != "X")
+    sml <- sml[sel]
+    tbl <- tbl[ ,sel]
+    gs <- factor(sml)
+    groups <- make.names(c("Ctrl", "Tx"))
+    levels(gs) <- groups
+    sample_info <- data.frame(Group = gs, row.names = colnames(tbl))
+    keep <- rowSums( tbl >= 10 ) >= min(table(gs))
+    tbl <- tbl[keep, ]
+    ds <- DESeqDataSetFromMatrix(countData=tbl, colData=sample_info, design= ~Group)
+    ds <- DESeq(ds, test="Wald", sfType="poscount")
+    r <- results(ds, contrast=c("Group", groups[2], groups[1]), alpha=0.05, pAdjustMethod ="fdr")
+    tT <- r[order(r$padj)[1:length(r$padj)],]
+    tT <- merge(as.data.frame(tT), annot, by=0, sort=F)
+    tT <- subset(tT, select=c("GeneID","padj","pvalue","lfcSE","stat","log2FoldChange","baseMean","Symbol","Description"))
+    #### subset ####
+    ex2 <- data.table(subset(tT, select=c("GeneID", "Symbol", "Description", "log2FoldChange", "pvalue", "padj")))
+    #### Adjust column names ####
+    setnames(ex2, c("GeneID", "Symbol", "Description"), c("ENTREZID", "SYMBOL", "GENENAME"))
+    #### Get Raw data ####
+    GeneID <- as.integer(rownames(exraw))
+    exraw <- as.data.table(exraw)
+    #### Update column names ####
+    exraw$ENTREZID <- GeneID
+    #### merge FC and raw data together ####
+    mer <- merge(ex2, exraw, by = "ENTREZID")
+    return(mer)
+  }
+}
+
+#### Week 1 Part 3: GPL570 probe annotation table ####
+# Read the cached annotation file if it is already in GEOcache; otherwise download it
+gpl_cached <- list.files(cache_dir, pattern = "^GPL570\\.soft", full.names = TRUE)
+z <- if (length(gpl_cached)) getGEO(filename = gpl_cached[1]) else getGEO("GPL570", destdir = cache_dir)
+
+PlateAnnotInfo <- as.data.table(z@dataTable@table)
+PlateAnnotInfo <- PlateAnnotInfo[,c("ID", "Gene Symbol", "ENTREZ_GENE_ID"), with = FALSE]
+PlateAnnotInfo$`Gene Symbol` <- gsub(" ///.+", "", PlateAnnotInfo$`Gene Symbol`)
+PlateAnnotInfo$ENTREZ_GENE_ID <- gsub(" ///.+", "", PlateAnnotInfo$ENTREZ_GENE_ID)
+PlateAnnotInfo <- PlateAnnotInfo[!PlateAnnotInfo$`Gene Symbol` == "",]
+setnames(PlateAnnotInfo, c("Gene Symbol", "ENTREZ_GENE_ID"), c("SYMBOL", "ENTREZID"))
+PlateAnnotInfo <- PlateAnnotInfo[!is.na(ENTREZID),]
+PlateAnnotInfo <- PlateAnnotInfo[!ENTREZID == "",]
+PlateAnnotInfo$ENTREZID <- as.character(PlateAnnotInfo$ENTREZID)
+mappings <- AnnotationDbi::select(org.Hs.eg.db, keys=PlateAnnotInfo$ENTREZID, columns=c("GENENAME"), keytype="ENTREZID")
+PlateAnnotInfo <- unique(merge(PlateAnnotInfo, mappings, by = "ENTREZID", allow.cartesian = TRUE))
+PlateAnnotInfo <- PlateAnnotInfo[,c("ID", "ENTREZID", "SYMBOL", "GENENAME")]
+PlateAnnotInfo$GPLID <- "GPL570"
+
+```
+
+
+```{r Q2b, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=8, fig.width=10, results='show', cache=FALSE}
+
+#### Part B, Question 2: GSE11882 (GPL570 array), continuous variable = age ####
+
+# Helper: find the age column in the sample metadata and return it as numeric
+get_age <- function(meta) {
+  meta    <- as.data.frame(meta, check.names = FALSE)
+  age_col <- grep("^age", names(meta), ignore.case = TRUE, value = TRUE)[1]
+  if (is.na(age_col)) stop("No age column found. Columns are: ",
+                           paste(names(meta), collapse = ", "))
+  message("Using metadata column: ", age_col)
+  as.numeric(gsub("[^0-9.]", "", meta[[age_col]]))   # "45 yrs" -> 45
+}
+
+#### 1. Download ####
+# Reading the local file skips the probe annotation, which leaves no "ID" column
+# for GEODataDownload() to use. This temporary getGEO() wrapper adds the probe
+# IDs back; GEODataDownload() uses it automatically, and it is removed afterwards.
+getGEO <- function(...) {
+  res <- GEOquery::getGEO(...)
+  if (is(res, "ExpressionSet") && ncol(fData(res)) == 0) {
+    fData(res) <- data.frame(ID = featureNames(res), row.names = featureNames(res))
+  }
+  res
+}
+
+# Sample metadata from the local series matrix (no internet needed)
+gs   <- list(getGEO(filename = gse_file, getGPL = FALSE))
+age0 <- get_age(pData(gs[[1]]))
+stopifnot(!anyNA(age0))
+summary(age0)
+
+# GEODataDownload() needs a two-group string for its limma contrast:
+# 1 = at or above the median age, 0 = below. The regression uses continuous age.
+gsm <- paste(ifelse(age0 >= median(age0), 1, 0), collapse = "")
+
+ArrayData <- GEODataDownload(DS = DS,
+                             gpl = gpl,
+                             gsm = gsm,
+                             PlateAnnotInfo = PlateAnnotInfo,
+                             Technology = "Array")
+rm(getGEO)                                    # back to the normal GEOquery::getGEO
+names(ArrayData)
+
+#### 2. Expression matrix and age vector ####
+Dat  <- as.data.frame(ArrayData[["Data"]])
+Meta <- as.data.frame(ArrayData[["MetaData"]], check.names = FALSE)
+
+# One row per probe, one column per sample (GeneSpring ratios to each gene's median, not log2)
+sample_cols <- grep("^GSM", names(Dat), value = TRUE)
+exprMat <- as.matrix(Dat[, sample_cols])
+rownames(exprMat) <- Dat$ID
+
+# Age in the same order as the expression matrix columns
+Meta <- Meta[match(sample_cols, Meta$geo_accession), ]
+age  <- get_age(Meta)
+
+stopifnot(identical(Meta$geo_accession, sample_cols),
+          length(age) == ncol(exprMat),
+          !anyNA(age))
+
+dim(exprMat)
+hist(age, breaks = 20, col = "grey80",
+     main = "Age of the samples", xlab = "Age (years)")
+
+#### 3. Fit age ~ expression for every gene, keep the ANOVA p-value ####
+# NA if the model cannot be fitted (e.g. constant expression)
+gene_pvalue <- function(expression, age) {
+  df <- data.frame(age = age, expression = expression)
+  tryCatch(anova(lm(age ~ expression, df))["expression", "Pr(>F)"],
+           error = function(e) NA_real_)
+}
+
+# Debug on the first 100 genes (Hint 2)
+test_p <- numeric(100)
+for (i in 1:100) test_p[i] <- gene_pvalue(exprMat[i, ], age)
+summary(test_p)
+
+# Full run
+pvals <- rep(NA_real_, nrow(exprMat))
+names(pvals) <- rownames(exprMat)
+system.time(
+  for (i in seq_len(nrow(exprMat))) {
+    pvals[i] <- gene_pvalue(exprMat[i, ], age)
+  }
+)
+sum(is.na(pvals))
+summary(pvals)
+
+#### 4. Distribution of p-values across all genes ####
+op <- par(mfrow = c(1, 2))
+hist(pvals, breaks = 50, col = "steelblue", border = "white",
+     main = "ANOVA p-values, age ~ expression", xlab = "p-value")
+abline(h = sum(!is.na(pvals)) / 50, lty = 2, col = "firebrick")  # expected under the null
+hist(-log10(pvals), breaks = 50, col = "steelblue", border = "white",
+     main = "Same p-values on a -log10 scale", xlab = "-log10(p-value)")
+par(op)
+
+padj <- p.adjust(pvals, method = "fdr")
+c(n_tested     = sum(!is.na(pvals)),
+  p_below_05   = sum(pvals < 0.05, na.rm = TRUE),
+  fdr_below_05 = sum(padj  < 0.05, na.rm = TRUE))
+
+#### 5. The most and the least significant gene ####
+most_id  <- names(which.min(pvals))    # smallest p-value
+least_id <- names(which.max(pvals))    # largest p-value
+
+extremes <- data.frame(
+  case    = c("Most significant", "Least significant"),
+  probe   = c(most_id, least_id),
+  SYMBOL  = Dat$SYMBOL[match(c(most_id, least_id), Dat$ID)],
+  p_value = signif(pvals[c(most_id, least_id)], 3),
+  FDR     = signif(padj[c(most_id, least_id)], 3)
+)
+knitr::kable(extremes, row.names = FALSE,
+             caption = "Genes with the most and least significant effect on age")
+
+df_most  <- data.frame(age = age, expression = exprMat[most_id, ])
+df_least <- data.frame(age = age, expression = exprMat[least_id, ])
+fit_most  <- lm(age ~ expression, df_most)
+fit_least <- lm(age ~ expression, df_least)
+
+# Scatter plots with the fitted lines
+op <- par(mfrow = c(1, 2))
+plot(age ~ expression, df_most, pch = 19, col = "grey30",
+     main = paste("Most significant:", extremes$SYMBOL[1], most_id),
+     xlab = "Normalized expression", ylab = "Age (years)")
+abline(fit_most, col = "firebrick", lwd = 2)
+plot(age ~ expression, df_least, pch = 19, col = "grey30",
+     main = paste("Least significant:", extremes$SYMBOL[2], least_id),
+     xlab = "Normalized expression", ylab = "Age (years)")
+abline(fit_least, col = "firebrick", lwd = 2)
+par(op)
+
+#### 6. Most significant gene: summary, ANOVA, diagnostics ####
+summary(fit_most)
+anova(fit_most)
+op <- par(mfrow = c(2, 2)); plot(fit_most); par(op)
+
+#### 7. Least significant gene: summary, ANOVA, diagnostics ####
+summary(fit_least)
+anova(fit_least)
+op <- par(mfrow = c(2, 2)); plot(fit_least); par(op)
+
+```
+
+#### Interpretation
+
+All 44,134 probes were tested across 173 samples. The p-value histogram has a very large spike near 0 and a low, flat tail. If no gene were related to age, the histogram would be flat at the dashed line. Instead 25,696 probes (58%) have p < 0.05 and 23,243 have FDR < 0.05.
+
+The most significant gene is **CX3CL1** (823_at), which encodes fractalkine, a chemokine made by neurons. Its slope is −24.1 years per unit of expression (p < 2.2e-16, R² = 0.36), so higher expression goes with younger age. The diagnostic plots show no strong curvature, but residual spread is uneven and the Q-Q plot departs at the lower tail; Question 5 looks at this more closely.
+
+The least significant gene, **LOC101928111** (237764_at), has a slope of essentially zero (p = 1, R² ≈ 0). Its fitted line is flat at the mean age (60 years), so it is the real-data equivalent of the intercept-only model in Question 1, and its residuals just reproduce the spread of age.
+
+Having more than half of all probes significant is suspicious. Two likely reasons are examined in Question 4: overall array intensity drifts with age, and many samples come from the same donors (several brain regions each), so they are not independent.
+
+
+
+### Question 3
+
+Take the gene with the strongest association to your continuous variable from Question 2, that is, the gene with the smallest ANOVA p-value, and fit both a LOESS curve and a GAM to its expression-versus-continuous-variable relationship, following the approaches introduced in Week 3 Part 2. Plot the linear fit from Question 2 together with the LOESS and GAM fits on the same scatterplot, and compare all three models using AIC. Discuss whether the non-linear fits reveal a relationship the straight line missed, or whether they simply reproduce the same trend with added flexibility and no real improvement.
+
+
+```{r Q3, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=6, fig.width=8, results='show', cache=FALSE}
+
+#### Question 3: linear vs LOESS vs GAM for the most significant gene ####
+library(mgcv)
+
+# Same data and same response (age) as Question 2, so the AICs are comparable
+fit_lm    <- fit_most                                            # age ~ expression
+fit_loess <- loess(age ~ expression, data = df_most, span = 0.75, degree = 2)
+fit_gam   <- gam(age ~ s(expression), data = df_most, method = "REML")
+
+#### 1. All three fits on one scatterplot ####
+grid <- data.frame(expression = seq(min(df_most$expression),
+                                    max(df_most$expression), length.out = 200))
+
+plot(age ~ expression, df_most, pch = 19, col = "grey60",
+     main = paste("Age vs expression:", extremes$SYMBOL[1], most_id),
+     xlab = "Normalized expression", ylab = "Age (years)")
+lines(grid$expression, predict(fit_lm,    grid), col = "firebrick",  lwd = 2)
+lines(grid$expression, predict(fit_loess, grid), col = "steelblue",  lwd = 2, lty = 2)
+lines(grid$expression, predict(fit_gam,   grid), col = "darkgreen",  lwd = 2, lty = 4)
+legend("topright", bty = "n", lwd = 2, lty = c(1, 2, 4),
+       col = c("firebrick", "steelblue", "darkgreen"),
+       legend = c("Linear", "LOESS", "GAM"))
+
+#### 2. AIC comparison ####
+# loess objects have no AIC() method, so compute it from the Gaussian
+# log-likelihood using the effective number of parameters (trace of the hat matrix).
+# The same formula reproduces AIC(lm), which is checked below.
+aic_gaussian <- function(rss, n, df) n * log(2 * pi * rss / n) + n + 2 * (df + 1)
+
+n <- nrow(df_most)
+aic_lm_check <- aic_gaussian(sum(resid(fit_lm)^2), n, df = 2)
+stopifnot(isTRUE(all.equal(aic_lm_check, AIC(fit_lm))))          # formula matches AIC()
+
+aic_loess <- aic_gaussian(sum(resid(fit_loess)^2), n, df = fit_loess$trace.hat)
+
+aic_table <- data.frame(
+  Model        = c("Linear", "LOESS", "GAM"),
+  Effective_df = c(2, fit_loess$trace.hat, sum(fit_gam$edf)),
+  RSS          = c(sum(resid(fit_lm)^2), sum(resid(fit_loess)^2), sum(resid(fit_gam)^2)),
+  AIC          = c(AIC(fit_lm), aic_loess, AIC(fit_gam))
+)
+aic_table$Delta_AIC <- aic_table$AIC - min(aic_table$AIC)
+knitr::kable(aic_table, digits = 2,
+             caption = "Model comparison for the most significant gene (lower AIC is better)")
+
+#### 3. How non-linear is the GAM? ####
+summary(fit_gam)          # edf of s(expression): close to 1 means essentially a straight line
+anova(fit_lm, fit_gam, test = "F")
+
+```
+
+#### Interpretation
+
+| Model | Effective df | AIC | ΔAIC |
+|---|---|---|---|
+| Linear | 2.00 | 1536.49 | 7.99 |
+| LOESS | 5.71 | 1528.49 | 0.00 |
+| GAM | 4.97 | 1528.74 | 0.25 |
+
+The non-linear fits reveal a relationship the straight line missed. Both curves have the same threshold shape. At low CX3CL1 expression (below about 1) the predicted age is flat at roughly 72 years. Between expression of about 1 and 2 it drops steeply. Above about 2.5 it levels off near 20 years. The straight line forces a constant decline over the whole range. It underestimates age at low expression, and at high expression it predicts ages below 20, which is impossible because the youngest donor is 20.
+
+The model comparison backs this up:
+
+- **AIC:** LOESS and GAM are about 8 AIC points lower than the linear model, which is meaningful support. They differ from each other by only 0.25, so they describe the same curve.
+- **GAM smooth:** the edf is 3.97. A value of 1 would mean a straight line, so the GAM found genuine curvature.
+- **F-test:** the extra flexibility significantly improves the fit (p = 0.002), and adjusted R² rises from 0.35 to 0.40.
+
+The curve has a likely explanation in the study design. The dataset has no donors between about 52 and 64 years, so the samples form a younger and an older group. Most older donors have low CX3CL1 expression and most younger donors have higher expression, so the smooth is partly tracing the switch between two groups rather than a gradual change across the lifespan. The extreme ends of the curves (the LOESS dip at the lowest expression and its rise above 3.5) rest on very few points and should not be interpreted.
+
+Overall the trend is the same in all three models: higher CX3CL1 goes with younger age. The non-linear models describe its shape better and stay within the possible age range.
+
+
+### Question 4
+
+Using the same dataset, perform the same gene-by-gene analysis as Question 2, except this time perform a normalization or batch-correction step on the data before fitting the models, and compare the results.
+
+If you are using an RNAseq dataset, DESeq2 performs its own internal normalization, but the raw counts returned by `GEODataDownload()` are the non-normalized values. You can retrieve the normalized values by inserting the following after `DESeqDataSetFromMatrix()`:
+
+*dds <- estimateSizeFactors(dds)*
+*counts(dds, normalized=TRUE)*
+
+- If you are using an array dataset, there is no fixed standard for whether the data uploaded to GEO is already normalized, so check first. If it is already normalized, briefly describe how the rest of this analysis could have been affected had it not been. If it is not normalized, normalize it, for example with the `normalizeBetweenArrays()` function in the `limma` package.
+
+Plot a boxplot of the pre- and post-normalization data for comparison, then rerun the analysis from Question 2 on the normalized values. Describe the results and how they compare to Question 2’s, then discuss which representation, raw or normalized, produces the more trustworthy result and why. This part of the question should include at least one plot beyond the boxplot that supports your conclusion; you are welcome to be creative here.
+
+
+```{r Q4, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=8, fig.width=10, results='show', cache=FALSE}
+
+#### Question 4: normalization, then repeat the Question 2 analysis ####
+library(limma)
+
+#### 1. Is the GEO data already normalized? ####
+# What the submitters say they did
+unique(Meta$data_processing)
+
+# What the data look like: similar medians/quartiles across samples = normalized
+sample_q <- apply(exprMat, 2, quantile, probs = c(0.25, 0.5, 0.75), na.rm = TRUE)
+summary(sample_q["50%", ])            # spread of the per-sample medians
+sd(sample_q["50%", ])
+
+#### 2. Quantile normalization between arrays ####
+exprNorm <- normalizeBetweenArrays(exprMat, method = "quantile")
+dimnames(exprNorm) <- dimnames(exprMat)
+
+#### 3. Boxplots before and after ####
+op <- par(mfrow = c(2, 1), mar = c(2, 4, 3, 1))
+boxplot(exprMat,  outline = FALSE, names = FALSE, col = "grey80", border = "grey40",
+        main = "Before normalization (as downloaded from GEO)", ylab = "Normalized expression")
+boxplot(exprNorm, outline = FALSE, names = FALSE, col = "lightblue", border = "steelblue4",
+        main = "After quantile normalization", ylab = "Normalized expression")
+par(op)
+
+#### 4. Rerun the Question 2 loop on the normalized values ####
+test_p_norm <- numeric(100)                                   # debug on 100 genes first
+for (i in 1:100) test_p_norm[i] <- gene_pvalue(exprNorm[i, ], age)
+summary(test_p_norm)
+
+pvals_norm <- rep(NA_real_, nrow(exprNorm))
+names(pvals_norm) <- rownames(exprNorm)
+system.time(
+  for (i in seq_len(nrow(exprNorm))) {
+    pvals_norm[i] <- gene_pvalue(exprNorm[i, ], age)
+  }
+)
+padj_norm <- p.adjust(pvals_norm, method = "fdr")
+
+#### 5. Compare with Question 2 ####
+# p-value distributions side by side
+op <- par(mfrow = c(1, 2))
+hist(pvals,      breaks = 50, col = "grey70",    border = "white",
+     main = "Question 2: as downloaded", xlab = "p-value")
+hist(pvals_norm, breaks = 50, col = "steelblue", border = "white",
+     main = "Question 4: quantile normalized", xlab = "p-value")
+par(op)
+
+# Summary numbers
+top100_raw  <- names(sort(pvals))[1:100]
+top100_norm <- names(sort(pvals_norm))[1:100]
+
+comparison <- data.frame(
+  Measure = c("Probes tested", "p < 0.05", "FDR < 0.05",
+              "Spearman correlation of p-values", "Top 100 probes shared"),
+  Raw        = c(sum(!is.na(pvals)), sum(pvals < 0.05, na.rm = TRUE),
+                 sum(padj < 0.05, na.rm = TRUE), NA, NA),
+  Normalized = c(sum(!is.na(pvals_norm)), sum(pvals_norm < 0.05, na.rm = TRUE),
+                 sum(padj_norm < 0.05, na.rm = TRUE),
+                 round(cor(pvals, pvals_norm, method = "spearman", use = "complete.obs"), 3),
+                 length(intersect(top100_raw, top100_norm)))
+)
+knitr::kable(comparison, caption = "Question 2 (as downloaded) vs Question 4 (normalized)")
+
+# Extra plot 1: gene-by-gene agreement of the p-values
+plot(-log10(pvals), -log10(pvals_norm), pch = 16, cex = 0.4, col = rgb(0, 0, 0, 0.25),
+     xlab = "-log10(p), as downloaded", ylab = "-log10(p), quantile normalized",
+     main = "Per-gene p-values before vs after normalization")
+abline(0, 1, col = "firebrick", lwd = 2)
+
+# Extra plot 2: is the overall intensity of an array related to age?
+# If it is, un-normalized data would confound technical intensity with age.
+med_raw  <- apply(exprMat,  2, median, na.rm = TRUE)
+med_norm <- apply(exprNorm, 2, median, na.rm = TRUE)
+op <- par(mfrow = c(1, 2))
+plot(age, med_raw, pch = 19, col = "grey40",
+     main = "Sample median vs age: as downloaded",
+     xlab = "Age (years)", ylab = "Median normalized expression")
+abline(lm(med_raw ~ age), col = "firebrick", lwd = 2)
+plot(age, med_norm, pch = 19, col = "steelblue",
+     main = "Sample median vs age: normalized", ylim = range(med_raw),
+     xlab = "Age (years)", ylab = "Median normalized expression")
+abline(lm(med_norm ~ age), col = "firebrick", lwd = 2)
+par(op)
+summary(lm(med_raw ~ age))$coefficients      # slope and p-value for raw medians vs age
+
+#### 6. Most and least significant genes after normalization ####
+most_norm  <- names(which.min(pvals_norm))
+least_norm <- names(which.max(pvals_norm))
+
+extremes_norm <- data.frame(
+  case     = c("Most significant", "Least significant"),
+  probe    = c(most_norm, least_norm),
+  SYMBOL   = Dat$SYMBOL[match(c(most_norm, least_norm), Dat$ID)],
+  p_norm   = signif(pvals_norm[c(most_norm, least_norm)], 3),
+  p_raw    = signif(pvals[c(most_norm, least_norm)], 3),
+  same_as_Q2 = c(most_norm == most_id, least_norm == least_id)
+)
+knitr::kable(extremes_norm, row.names = FALSE,
+             caption = "Extreme genes after normalization, with their Question 2 p-values")
+
+fit_most_norm  <- lm(age ~ expression, data.frame(age = age, expression = exprNorm[most_norm, ]))
+fit_least_norm <- lm(age ~ expression, data.frame(age = age, expression = exprNorm[least_norm, ]))
+
+summary(fit_most_norm);  anova(fit_most_norm)
+op <- par(mfrow = c(2, 2)); plot(fit_most_norm);  par(op)
+
+summary(fit_least_norm); anova(fit_least_norm)
+op <- par(mfrow = c(2, 2)); plot(fit_least_norm); par(op)
+
+```
+
+#### Interpretation
+
+**Was the data already normalized?** According to the submitters, yes: GC-RMA values were processed in GeneSpring with per-chip normalization to the 50th percentile and per-gene normalization to the median. The values are therefore ratios to each gene's median (range about 0–2.6), not log2 values. Even so, the per-sample medians still varied from 0.79 to 1.01, and the first boxplot shows boxes at different heights, with a few arrays much wider than the rest.
+
+**Normalization was needed despite this.** The sample median declines with age (slope −0.0007 per year, p = 2.9e-7): arrays from older donors are slightly dimmer overall. A gene-by-gene regression on these values picks up that technical trend in thousands of genes at once, making them look age-associated when the effect is really array-wide intensity. After quantile normalization every array has the same distribution, and the median-vs-age trend is gone.
+
+**Comparison with Question 2:**
+
+| Measure | As downloaded | Quantile normalized |
+|---|---|---|
+| p < 0.05 | 25,696 | 17,604 |
+| FDR < 0.05 | 23,243 | 13,962 |
+| Spearman correlation of p-values | | 0.62 |
+| Top 100 probes shared | | 58 |
+
+Normalization removed about a third of the significant probes. The per-gene p-value scatterplot shows broad agreement, but many probes that were significant before fall well below the diagonal afterwards. CX3CL1 remained the most significant gene and became stronger (R² 0.36 → 0.40, F 94.5 → 112.9). The least significant gene changed (SRSF3, p = 1 after normalization vs 0.46 before), which is expected because p-values near 1 are essentially noise.
+
+**Which is more trustworthy?** The normalized data. The raw values contain a technical intensity trend that is correlated with age, so many associations in Question 2 were inflated. Normalization removed that source of false positives, and the strongest biological signal (CX3CL1) survived and got clearer. One caveat: quantile normalization forces all arrays to an identical distribution, so it would also remove a real global change in expression with age if one existed.
+
+
+### Question 5
+
+Using the gene with the strongest association to your continuous variable (from Question 2, 3, or 4, whichever you judge more trustworthy), study the relationship between the fitted and observed values, and check whether that model’s residuals are consistent with the normality assumption a linear model relies on.
+
+- Use `predict()` to obtain fitted values and plot them against the observed values.
+- Use `resid()` to obtain the residuals and plot them.
+- Run a Shapiro-Wilk test on the residuals and interpret the result: does it support treating this model’s p-value at face value, or does it suggest the model or the data need a second look?
+
+```{r Q5, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=8, fig.width=10, results='show', cache=FALSE}
+
+#### Question 5: fitted vs observed, residuals, and normality ####
+
+# Model chosen as most trustworthy: the top gene after normalization (Question 4).
+# To use the Question 2 model instead, set: use_norm <- FALSE
+use_norm <- TRUE
+
+if (use_norm) {
+  fit5  <- fit_most_norm
+  gene5 <- most_norm
+} else {
+  fit5  <- fit_most
+  gene5 <- most_id
+}
+symbol5 <- Dat$SYMBOL[match(gene5, Dat$ID)]
+
+#### 1. Fitted and observed values ####
+observed  <- age
+fitted5   <- predict(fit5)
+resid5    <- resid(fit5)
+
+stopifnot(length(fitted5) == length(observed))
+head(data.frame(observed, fitted = fitted5, residual = resid5))
+
+#### 2. Plots ####
+op <- par(mfrow = c(2, 2), mar = c(4, 4, 3, 1))
+
+# Observed vs fitted: points on the dashed line would be a perfect fit
+lims <- range(c(observed, fitted5))
+plot(fitted5, observed, pch = 19, col = "grey40", xlim = lims, ylim = lims,
+     main = paste("Observed vs fitted:", symbol5),
+     xlab = "Fitted age (years)", ylab = "Observed age (years)")
+abline(0, 1, lty = 2, col = "firebrick", lwd = 2)
+
+# Residuals vs fitted: should be a patternless band around zero
+plot(fitted5, resid5, pch = 19, col = "steelblue",
+     main = "Residuals vs fitted",
+     xlab = "Fitted age (years)", ylab = "Residual (years)")
+abline(h = 0, lty = 2)
+lines(lowess(fitted5, resid5), col = "firebrick", lwd = 2)   # trend in the residuals
+
+# Histogram of residuals with a normal curve of the same mean and sd
+hist(resid5, breaks = 20, freq = FALSE, col = "grey85", border = "white",
+     main = "Distribution of residuals", xlab = "Residual (years)")
+curve(dnorm(x, mean(resid5), sd(resid5)), add = TRUE, col = "firebrick", lwd = 2)
+
+# Normal Q-Q plot
+qqnorm(resid5, pch = 19, col = "grey40", main = "Normal Q-Q plot of residuals")
+qqline(resid5, col = "firebrick", lwd = 2)
+
+par(op)
+
+#### 3. Shapiro-Wilk test on the residuals ####
+sw <- shapiro.test(resid5)
+sw
+
+#### 4. Supporting numbers ####
+c(n_samples = length(resid5),
+  R2        = round(summary(fit5)$r.squared, 3),
+  model_p   = signif(anova(fit5)["expression", "Pr(>F)"], 3),
+  SW_W      = round(unname(sw$statistic), 3),
+  SW_p      = signif(sw$p.value, 3))
+
+# Is the response itself normal? Age is bounded and set by the study design,
+# so non-normal residuals can come from the age distribution, not the gene.
+shapiro.test(age)
+
+```
+
+#### Interpretation
+
+I used CX3CL1 from the quantile-normalized data (Question 4), because normalization removed an age-related intensity trend that inflated the raw results.
+
+**Observed vs fitted.** The model is significant (p = 1.4e-20, R² = 0.40) but predicts individual ages poorly. Points form two clusters that match the two age groups in the study. Older donors (64–99) are mostly fitted at 55–82 years, below their real age. Younger donors are spread across fitted ages from about 7 to 80, and many young donors are predicted to be 60 or older. One sample is fitted at about 7 years, below the youngest possible age.
+
+**Residuals vs fitted.** The lowess trend stays near zero up to fitted ages of about 50, then rises to about +8 years around 65. The spread is very uneven: it is narrow at low fitted ages, then widens sharply above 55 because that range mixes older donors (positive residuals of +10 to +40) with young donors predicted as old (residuals down to −57). So the constant-variance assumption is violated.
+
+**Normality.** The Shapiro-Wilk test rejects normality (W = 0.966, p = 0.0003). The Q-Q plot shows how: the lower tail falls well below the line (a long negative tail from young donors predicted as old), and the upper tail is shorter than a normal distribution would give. The histogram is left-skewed with a second peak around +15 to +20 years. Part of this comes from age itself, which is far from normal (W = 0.92, p = 4.4e-8) because the design has two age groups with a gap between 52 and 64. Age is the dependent variable, so the residuals inherit that shape.
+
+**Can the p-value be taken at face value?** Not exactly, and the model needs a second look. With 173 samples, the F-test tolerates moderate non-normality, and an association this strong (p ≈ 10⁻²⁰) will not disappear because of it. But three problems together mean the exact p-value is too optimistic:
+
+1. Residuals are skewed and non-normal.
+2. Variance is unequal across fitted values.
+3. Samples are not independent, since GSE11882 has several brain regions per donor, which this model ignores.
+
+A rank-based test such as `cor.test(age, expression, method = "spearman")` would confirm the association without assuming normality. The two-group age structure also suggests that comparing younger and older donors, or modelling expression as a function of age with donor as a random effect, would fit the design better than predicting a continuous age from one gene.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
