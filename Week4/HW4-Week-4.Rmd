@@ -1,0 +1,1350 @@
+---
+title: "RBIF-111 Week 4 Assignment"
+author: "Coddie Curry"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: show
+    theme: flatly
+---
+
+# RBIF-111 Week 4 Homework
+
+## Part A: Simulation foundations
+
+### Question 1
+
+Obtain results for the standard error of the mean, confidence intervals, and CLT convergence for random samples drawn from the exponential distribution.
+
+**1a**: Reproduce the plot of the standard error of the mean (as shown in Notes, Part 1) for the exponential distribution (using rexp). Remember that the population variance for an exponential distribution with rate 𝜆is 1/𝜆2.
+
+```{r Q1a, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+set.seed(123)                                # reproducible results
+
+lambda     <- 2                              # rate parameter of the exponential
+pop.mean   <- 1 / lambda                     # true mean = 1/lambda
+pop.sd     <- 1 / lambda                     # true SD   = sqrt(1/lambda^2) = 1/lambda
+smpl.sizes <- c(1, 2, 4, 8, 16, 32, 64, 128) # sample sizes n to try
+n.sim      <- 1000                           # number of samples drawn for each n
+
+r.mu  <- numeric()                           # mean of the sample means
+r.sem <- numeric()                           # SD of the sample means (simulated SEM)
+
+for (i.smpl in smpl.sizes) {
+  # draw n.sim samples of size i.smpl at once: each ROW is one sample
+  r.mat  <- matrix(rexp(i.smpl * n.sim, rate = lambda),
+                   nrow = n.sim, ncol = i.smpl)
+  mu.tmp <- apply(r.mat, 1, mean)            # sample mean of every row
+  r.mu   <- c(r.mu,  mean(mu.tmp))           # centre of the sampling distribution
+  r.sem  <- c(r.sem, sd(mu.tmp))             # spread of the sampling distribution = SEM
+}
+
+theory.sem <- pop.sd / sqrt(smpl.sizes)      # Eq. (15): sigma / sqrt(n)
+
+# ---- Function that draws the full plot ----
+draw.sem.plot <- function() {
+  graphics::plot(range(smpl.sizes), c(0, 0.6),                        # headroom above 0.5
+                 type = "n", xlab = "Sample size n", ylab = "Mean and SEM",
+                 main = paste0("Sample mean and SEM, Exponential(rate = ", lambda, ")"),
+                 sub  = paste(n.sim, "sims"))
+  graphics::abline(h = pop.mean, col = "gray", lty = 3)               # true mean 1/lambda
+  graphics::lines(smpl.sizes, r.mu, lty = 2)                          # simulated mean of means
+  graphics::points(smpl.sizes, r.sem, col = "blue", pch = 19)         # simulated SEM
+  graphics::lines(smpl.sizes, theory.sem, col = "blue")               # theoretical SEM
+  graphics::legend("right",                                           # empty area, mid-right
+                   legend = c("Simulated mean of sample means", "True mean (1/lambda)",
+                              "Simulated SEM", "Theoretical SEM = (1/lambda)/sqrt(n)"),
+                   lty = c(2, 3, NA, 1), pch = c(NA, NA, 19, NA),
+                   col = c("black", "gray", "blue", "blue"), bty = "n", cex = 0.85)
+}
+
+draw.sem.plot()                              # draw the plot
+
+# ---- Numerical comparison ----
+print(round(data.frame(n             = smpl.sizes,
+                       mean.of.means = r.mu,
+                       sim.SEM       = r.sem,
+                       theory.SEM    = theory.sem,
+                       ratio         = r.sem / theory.sem), 4))
+```
+
+**How the code works.** We set the exponential rate to λ = 2, so the true mean is μ = 1/λ = 0.5 and the true SD is σ = √(1/λ²) = 0.5. For each sample size n ∈ {1, 2, 4, …, 128}, `rexp()` draws `n × 1000` values at once, and `matrix()` arranges them so each row is one sample of size n. `apply(r.mat, 1, mean)` then gives 1000 sample means, i.e. 1000 realizations of the random variable X̄. The mean of these 1000 values shows where the sampling distribution of X̄ is centred, and their standard deviation is the simulated standard error of the mean (SEM). The theoretical SEM comes from Eq. (15) of Notes Part 1, σ/√n = (1/λ)/√n. `draw.sem.plot()` plots the simulated mean of the sample means (dashed), the true mean (gray dotted), the simulated SEM (blue points) and the theoretical SEM curve (blue line). The table compares simulated and theoretical SEM directly.
+
+**Interpretation.** The mean of the sample means stays at ≈ 0.50 = 1/λ for every n, so the sample mean is an unbiased estimator of μ even for a strongly right-skewed distribution. The simulated SEM agrees closely with the theoretical value σ/√n at every sample size: the ratio of simulated to theoretical SEM ranges from 0.94 to 1.04, and the remaining differences are Monte Carlo noise from using 1000 simulations. The SEM falls steeply at small n and then levels off, because it decreases only as 1/√n: going from n = 1 to n = 128 reduced it from 0.50 to 0.044, about √128 ≈ 11-fold. Eq. (15) needs only independent, identically distributed draws with finite variance, not normality, which is why it holds exactly for the exponential distribution.
+
+
+**1b**: Demonstrate the calculation of the confidence interval for the mean of a random sample drawn from the exponential distribution, both using confint and using mean, sd, qt directly; make sure the two approaches produce the same answer (see Part 3 of the Notes, finish what we started there).
+
+```{r Q1b, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+set.seed(123)                                # reproducible results
+
+lambda   <- 2                                # rate parameter of the exponential
+pop.mean <- 1 / lambda                       # true population mean = 0.5
+n        <- 20                               # sample size
+conf.lvl <- 0.95                             # confidence level (gamma)
+
+x <- rexp(n, rate = lambda)                  # one random sample from Exp(rate = 2)
+
+# ---- Approach 1: confint() on an intercept-only linear model ----
+# The intercept of x ~ 1 is the sample mean, so its CI is the CI of the mean
+fit        <- lm(x ~ 1)
+ci.confint <- confint(fit, level = conf.lvl)
+ci.confint
+
+# ---- Approach 2: manual calculation with mean, sd and qt (Notes Part 3, Eq. 21) ----
+x.bar  <- mean(x)                            # sample mean
+s      <- sd(x)                              # sample standard deviation
+se     <- s / sqrt(n)                        # estimated SEM = s / sqrt(n)
+t.crit <- qt(1 - (1 - conf.lvl) / 2, df = n - 1)   # 97.5% quantile of t with n-1 df
+ci.manual <- c(x.bar - t.crit * se, x.bar + t.crit * se)
+
+# ---- Side-by-side comparison ----
+ci.table <- rbind(confint = as.numeric(ci.confint),
+                  manual  = ci.manual)
+colnames(ci.table) <- c("2.5 %", "97.5 %")
+print(round(ci.table, 6))
+
+cat("Sample mean:", round(x.bar, 4),
+    "| SE (manual):", round(se, 4),
+    "| SE (lm):", round(summary(fit)$coefficients[1, "Std. Error"], 4),
+    "| t critical value:", round(t.crit, 4), "\n")
+cat("Do the two CIs agree? ", isTRUE(all.equal(as.numeric(ci.confint), ci.manual)), "\n")
+cat("Does the CI contain the true mean (", pop.mean, ")? ",
+    ci.manual[1] < pop.mean & pop.mean < ci.manual[2], "\n")
+
+# ---- Plot: sample histogram with sample mean, 95% CI and true mean ----
+{
+  graphics::hist(x, breaks = 10, col = "lightgray", border = "white",
+                 main = paste0("Sample of n = ", n, " from Exponential(rate = ", lambda,
+                               ") with 95% CI for the mean"),
+                 xlab = "x")
+  graphics::abline(v = x.bar,     col = "black", lwd = 2)          # sample mean
+  graphics::abline(v = ci.manual, col = "blue",  lwd = 2, lty = 2) # CI bounds
+  graphics::abline(v = pop.mean,  col = "red",   lwd = 2, lty = 3) # true mean
+  graphics::legend("topright",
+                   legend = c("Sample mean", "95% CI bounds", "True mean (1/lambda)"),
+                   col = c("black", "blue", "red"), lty = c(1, 2, 3), lwd = 2,
+                   bty = "n", cex = 0.85)
+}
+```
+
+**How the code works.** We draw a single random sample of n = 20 values from the exponential distribution with rate λ = 2, whose true mean is 1/λ = 0.5. Approach 1 uses the trick from Notes Part 3: the intercept-only model `lm(x ~ 1)` fits a horizontal line, so its estimated intercept is exactly the sample mean, and `confint()` returns its 95% confidence interval. Approach 2 computes the same interval by hand using Eq. (21) of the Notes, x̄ ± z₀·s/√n. We get x̄ from `mean()` and s from `sd()`. Because σ is unknown and estimated by s, the statistic T = (x̄ − μ)/(s/√n) follows a t-distribution with n − 1 = 19 degrees of freedom, so the critical value z₀ is the 97.5% quantile of that distribution, from `qt(0.975, df = 19)`. Leaving 2.5% in each tail gives 95% coverage. We print the two intervals side by side and check them with `all.equal()`. The histogram shows the skewed sample with the sample mean, the CI bounds and the true mean.
+
+**Interpretation.** The two approaches give identical intervals, because `confint()` on an lm object does exactly this calculation internally: estimate ± t-quantile × standard error. The standard error reported by `lm` equals s/√n. The interval [__, __] is centred on the sample mean x̄ = __, and in this sample it [does / does not] contain the true mean 0.5. In the frequentist sense, this does not mean there is a 95% probability that μ lies in this particular interval. It means that if we kept drawing samples and building intervals the same way, about 95% of them would contain the true mean. Note that the t-interval assumes the sample mean is approximately normal. The exponential distribution is strongly skewed and n = 20 is moderate, so the actual coverage may be slightly below the nominal 95%. That is what the coverage simulation in the next part checks.
+
+**1c**: Generate plots illustrating CLT convergence to normality for the sum of i.i.d. variables distributed according to the exponential distribution (similar to Part 2; do not fall into the trap that, in contrast to the Bernoulli distribution, there is no ready-to-use analytical expression for the sum of n exponential random variables, so you will have to sample explicitly and sum up the samples drawn).
+
+```{r Q1c, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=9, fig.width=9, results='show', cache=FALSE}
+
+set.seed(123)                                # reproducible results
+
+lambda     <- 2                              # rate parameter of the exponential
+pop.mean   <- 1 / lambda                     # mean of one Exp(lambda) variable
+pop.var    <- 1 / lambda^2                   # variance of one Exp(lambda) variable
+smpl.sizes <- 2^(0:8)                        # n = 1, 2, 4, ..., 256 variables summed
+n.sim      <- 5000                           # number of sums S simulated for each n
+
+sum.list <- list()                           # store the simulated sums for each n
+
+for (i.smpl in smpl.sizes) {
+  # draw n.sim samples of size i.smpl at once: each ROW is one sample
+  r.mat <- matrix(rexp(i.smpl * n.sim, rate = lambda),
+                  nrow = n.sim, ncol = i.smpl)
+  # sum each row explicitly: S = X1 + X2 + ... + Xn  (n.sim sums)
+  sum.list[[as.character(i.smpl)]] <- rowSums(r.mat)
+}
+
+# ---- Plot: 3x3 lattice of histograms with CLT normal approximation ----
+{
+  old.par <- graphics::par(mfrow = c(3, 3), mar = c(4, 4, 3, 1))
+  for (i.smpl in smpl.sizes) {
+    s.vals <- sum.list[[as.character(i.smpl)]]
+    clt.mu <- i.smpl * pop.mean              # CLT mean of the sum:     n / lambda
+    clt.sd <- sqrt(i.smpl * pop.var)         # CLT SD of the sum:  sqrt(n) / lambda
+
+    graphics::hist(s.vals, breaks = 40, freq = FALSE,
+                   col = "lightgray", border = "white",
+                   main = paste("n =", i.smpl),
+                   xlab = "Sum(Xn)", ylab = "Density")
+    graphics::curve(dnorm(x, mean = clt.mu, sd = clt.sd),
+                    add = TRUE, col = "red", lwd = 2)  # CLT prediction N(n/lambda, n/lambda^2)
+  }
+  graphics::par(old.par)
+}
+
+# ---- Normal Q-Q plots for a few n: a sharper check of normality ----
+{
+  old.par <- graphics::par(mfrow = c(1, 3), mar = c(4, 4, 3, 1))
+  for (i.smpl in c(1, 8, 256)) {
+    s.vals <- sum.list[[as.character(i.smpl)]]
+    stats::qqnorm(s.vals, main = paste("Normal Q-Q, n =", i.smpl),
+                  pch = 20, cex = 0.4, col = "steelblue")
+    stats::qqline(s.vals, col = "red", lwd = 2)
+  }
+  graphics::par(old.par)
+}
+
+# ---- Numerical summary: mean, variance and skewness of the sums vs. theory ----
+skew <- function(v) mean((v - mean(v))^3) / sd(v)^3   # sample skewness
+
+summary.tbl <- data.frame(
+  n           = smpl.sizes,
+  sim.mean    = sapply(sum.list, mean),
+  theory.mean = smpl.sizes * pop.mean,
+  sim.var     = sapply(sum.list, var),
+  theory.var  = smpl.sizes * pop.var,
+  sim.skew    = sapply(sum.list, skew),
+  theory.skew = 2 / sqrt(smpl.sizes)          # skewness of a sum of n Exp variables
+)
+print(round(summary.tbl, 3), row.names = FALSE)
+```
+**How the code works.** For each n ∈ {1, 2, 4, …, 256}, we draw 5000 independent samples of size n from Exp(λ = 2), arranged as rows of a matrix, and use `rowSums()` to compute the sum S = X₁ + … + Xₙ for each sample. This gives 5000 realizations of S for each n, which we use to build its distribution numerically. Each histogram is drawn on the density scale (`freq = FALSE`) so we can overlay the normal curve the CLT predicts, N(n/λ, n/λ²). Each exponential variable has mean 1/λ and variance 1/λ², and for independent variables the means and variances add (Eq. 10, Notes Part 1). Normal Q-Q plots for n = 1, 8 and 256 give a sharper visual test, and the table compares the simulated mean, variance and skewness of S with their theoretical values.
+
+**Interpretation.** At n = 1, the "sum" is a single exponential variable: strongly right-skewed, with its mode at zero and a long right tail. The normal curve fits it badly, and the Q-Q plot bends sharply upward. As n increases, the distribution of S moves away from zero, becomes more symmetric and approaches the red normal curve. By n ≈ 16–32 the histogram is close to normal, and at n = 256 it is indistinguishable from it, with Q-Q points lying on the line. The simulated mean and variance match n/λ and n/λ² at every n, as expected. What the CLT adds is the shape. The skewness falls as 2/√n (from 2 at n = 1 to about 0.125 at n = 256), so the shape converges toward the symmetric Gaussian. Convergence is slower than for the Bernoulli example in Part 2, which already looked normal at n ≈ 8: a fair coin is symmetric, while the exponential distribution is strongly skewed and needs more terms before that asymmetry averages out. Even so, its finite variance guarantees convergence, which is why the CLT justifies normal-based inference (like the t-interval in Q1.2) for sample means from skewed data once n is reasonably large.
+
+
+### Question 2
+
+Same as Question 1, but this time obtain results for the standard error of the mean, confidence intervals, and CLT convergence for random samples drawn from the uniform distribution.
+
+**2a**: Reproduce the plot of the standard error of the mean (as in Part 1) for the uniform distribution (using runif). Remember that the population variance for a random variable uniformly distributed between𝑎and𝑏is (𝑏−𝑎)2/12.
+
+```{r Q2a, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+set.seed(123)                                # reproducible results
+
+a          <- 0                              # lower bound of the uniform
+b          <- 6                              # upper bound of the uniform
+pop.mean   <- (a + b) / 2                    # true mean     = (a+b)/2 = 3
+pop.sd     <- sqrt((b - a)^2 / 12)           # true SD       = sqrt((b-a)^2/12) = sqrt(3)
+smpl.sizes <- c(1, 2, 4, 8, 16, 32, 64, 128) # sample sizes n to try
+n.sim      <- 1000                           # number of samples drawn for each n
+
+r.mu  <- numeric()                           # mean of the sample means
+r.sem <- numeric()                           # SD of the sample means (simulated SEM)
+
+for (i.smpl in smpl.sizes) {
+  # draw n.sim samples of size i.smpl at once: each ROW is one sample
+  r.mat  <- matrix(runif(i.smpl * n.sim, min = a, max = b),
+                   nrow = n.sim, ncol = i.smpl)
+  mu.tmp <- apply(r.mat, 1, mean)            # sample mean of every row
+  r.mu   <- c(r.mu,  mean(mu.tmp))           # centre of the sampling distribution
+  r.sem  <- c(r.sem, sd(mu.tmp))             # spread of the sampling distribution = SEM
+}
+
+theory.sem <- pop.sd / sqrt(smpl.sizes)      # Eq. (15): sigma / sqrt(n)
+
+# ---- Function that draws the full plot ----
+draw.sem.plot.unif <- function() {
+  graphics::plot(range(smpl.sizes), c(0, 1.2 * max(c(r.mu, r.sem))),  # headroom above the mean
+                 type = "n", xlab = "Sample size n", ylab = "Mean and SEM",
+                 main = paste0("Sample mean and SEM, Uniform(", a, ", ", b, ")"),
+                 sub  = paste(n.sim, "sims"))
+  graphics::abline(h = pop.mean, col = "gray", lty = 3)               # true mean (a+b)/2
+  graphics::lines(smpl.sizes, r.mu, lty = 2)                          # simulated mean of means
+  graphics::points(smpl.sizes, r.sem, col = "blue", pch = 19)         # simulated SEM
+  graphics::lines(smpl.sizes, theory.sem, col = "blue")               # theoretical SEM
+  graphics::legend("right",
+                   legend = c("Simulated mean of sample means", "True mean ((a+b)/2)",
+                              "Simulated SEM", "Theoretical SEM = sqrt((b-a)^2/12)/sqrt(n)"),
+                   lty = c(2, 3, NA, 1), pch = c(NA, NA, 19, NA),
+                   col = c("black", "gray", "blue", "blue"), bty = "n", cex = 0.85)
+}
+
+draw.sem.plot.unif()                         # draw the plot
+
+# ---- Numerical comparison ----
+print(round(data.frame(n             = smpl.sizes,
+                       mean.of.means = r.mu,
+                       sim.SEM       = r.sem,
+                       theory.SEM    = theory.sem,
+                       ratio         = r.sem / theory.sem), 4))
+```
+**How the code works.** The procedure is identical to Q1.1, except that samples are drawn from the continuous uniform distribution U(0, 6) using `runif()`. For this distribution the true mean is μ = (a + b)/2 = 3 and the true variance is σ² = (b − a)²/12 = 3, so σ = √3 ≈ 1.732. For each sample size n ∈ {1, 2, …, 128}, we draw 1000 samples of size n (one per row of a matrix) and compute each sample's mean with `apply()`. We then record the mean and standard deviation of those 1000 sample means. The standard deviation is the simulated SEM, and we compare it with the theoretical prediction σ/√n from Eq. (15) of Notes Part 1. The plot shows the simulated mean of the sample means (dashed), the true mean (gray dotted), the simulated SEM (blue points) and the theoretical SEM curve (blue line).
+
+**Interpretation.** The mean of the sample means stays at ≈ 3 = (a + b)/2 for every n, so the sample mean is again an unbiased estimator of μ. The simulated SEM follows the theoretical curve √3/√n closely, falling from ≈ 1.73 at n = 1 to ≈ 0.153 at n = 128. The simulated-to-theoretical ratios stay close to 1, and the small deviations are Monte Carlo noise. As with the exponential distribution, the SEM shrinks only as 1/√n, so a 128-fold larger sample buys about 11-fold more precision. Together with Q1.1, this shows that Eq. (15) holds regardless of the shape of the underlying distribution, skewed (exponential) or flat and symmetric (uniform), as long as the draws are i.i.d. with finite variance.
+
+**2b**: Reproduce the confidence interval calculation for the mean of a sample from the uniform distribution, both using confint and using mean, sd, qt; make sure the two approaches produce the same answer.
+
+```{r Q2b, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+set.seed(123)                                # reproducible results
+
+a        <- 0                                # lower bound of the uniform
+b        <- 6                                # upper bound of the uniform
+pop.mean <- (a + b) / 2                      # true population mean = 3
+n        <- 20                               # sample size
+conf.lvl <- 0.95                             # confidence level (gamma)
+
+x <- runif(n, min = a, max = b)              # one random sample from U(0, 6)
+
+# ---- Approach 1: confint() on an intercept-only linear model ----
+# The intercept of x ~ 1 is the sample mean, so its CI is the CI of the mean
+fit        <- lm(x ~ 1)
+ci.confint <- confint(fit, level = conf.lvl)
+ci.confint
+
+# ---- Approach 2: manual calculation with mean, sd and qt (Notes Part 3, Eq. 21) ----
+x.bar  <- mean(x)                            # sample mean
+s      <- sd(x)                              # sample standard deviation
+se     <- s / sqrt(n)                        # estimated SEM = s / sqrt(n)
+t.crit <- qt(1 - (1 - conf.lvl) / 2, df = n - 1)   # 97.5% quantile of t with n-1 df
+ci.manual <- c(x.bar - t.crit * se, x.bar + t.crit * se)
+
+# ---- Side-by-side comparison ----
+ci.table <- rbind(confint = as.numeric(ci.confint),
+                  manual  = ci.manual)
+colnames(ci.table) <- c("2.5 %", "97.5 %")
+print(round(ci.table, 6))
+
+cat("Sample mean:", round(x.bar, 4),
+    "| SE (manual):", round(se, 4),
+    "| SE (lm):", round(summary(fit)$coefficients[1, "Std. Error"], 4),
+    "| t critical value:", round(t.crit, 4), "\n")
+cat("Do the two CIs agree? ", isTRUE(all.equal(as.numeric(ci.confint), ci.manual)), "\n")
+cat("Does the CI contain the true mean (", pop.mean, ")? ",
+    ci.manual[1] < pop.mean & pop.mean < ci.manual[2], "\n")
+
+# ---- Plot: sample histogram with sample mean, 95% CI and true mean ----
+{
+  graphics::hist(x, breaks = seq(a, b, by = 0.5), col = "lightgray", border = "white",
+                 main = paste0("Sample of n = ", n, " from Uniform(", a, ", ", b,
+                               ") with 95% CI for the mean"),
+                 xlab = "x")
+  graphics::abline(v = x.bar,     col = "black", lwd = 2)          # sample mean
+  graphics::abline(v = ci.manual, col = "blue",  lwd = 2, lty = 2) # CI bounds
+  graphics::abline(v = pop.mean,  col = "red",   lwd = 2, lty = 3) # true mean
+  graphics::legend("topright",
+                   legend = c("Sample mean", "95% CI bounds", "True mean ((a+b)/2)"),
+                   col = c("black", "blue", "red"), lty = c(1, 2, 3), lwd = 2,
+                   bty = "n", cex = 0.85)
+}
+```
+**How the code works.** We draw a single random sample of n = 20 values from the uniform distribution U(0, 6), whose true mean is (a + b)/2 = 3. Approach 1 fits the intercept-only model `lm(x ~ 1)`, whose estimated intercept is exactly the sample mean, and uses `confint()` to get its 95% confidence interval. Approach 2 applies Eq. (21) of Notes Part 3 directly, x̄ ± z₀·s/√n. We get x̄ from `mean()`, s from `sd()`, and the critical value z₀ from `qt(0.975, df = 19)`, the 97.5% quantile of the t-distribution with n − 1 = 19 degrees of freedom. We use the t-distribution because σ is estimated from the sample rather than known. We print the two intervals side by side and check them with `all.equal()`. The histogram shows the sample with the sample mean, the CI bounds and the true mean.
+
+**Interpretation.** The two approaches give identical intervals, [__, __], because `confint()` on an lm object computes exactly estimate ± t-quantile × standard error, and the standard error reported by `lm` equals s/√n. The interval is centred on x̄ = __ and in this sample it [does / does not] contain the true mean 3. As before, the 95% refers to the procedure: across many repeated samples, about 95% of intervals built this way would cover μ. This particular interval either contains μ or it does not. Unlike the exponential distribution, the uniform distribution is symmetric and has no long tails, so the sample mean is close to normal even at n = 20. We therefore expect the t-interval's actual coverage to be very close to the nominal 95% here, a better fit to the t-test's assumptions than the skewed exponential case in Q1.2.
+
+
+**2c**: Reproduce plots illustrating CLT convergence to normality for the sum of uniform random variables.
+
+```{r Q2c, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=9, fig.width=9, results='show', cache=FALSE}
+
+set.seed(123)                                # reproducible results
+
+a          <- 0                              # lower bound of the uniform
+b          <- 6                              # upper bound of the uniform
+pop.mean   <- (a + b) / 2                    # mean of one U(a,b) variable     = 3
+pop.var    <- (b - a)^2 / 12                 # variance of one U(a,b) variable = 3
+smpl.sizes <- 2^(0:8)                        # n = 1, 2, 4, ..., 256 variables summed
+n.sim      <- 5000                           # number of sums S simulated for each n
+
+sum.list <- list()                           # store the simulated sums for each n
+
+for (i.smpl in smpl.sizes) {
+  # draw n.sim samples of size i.smpl at once: each ROW is one sample
+  r.mat <- matrix(runif(i.smpl * n.sim, min = a, max = b),
+                  nrow = n.sim, ncol = i.smpl)
+  # sum each row explicitly: S = X1 + X2 + ... + Xn  (n.sim sums)
+  sum.list[[as.character(i.smpl)]] <- rowSums(r.mat)
+}
+
+# ---- Plot: 3x3 lattice of histograms with CLT normal approximation ----
+{
+  old.par <- graphics::par(mfrow = c(3, 3), mar = c(4, 4, 3, 1))
+  for (i.smpl in smpl.sizes) {
+    s.vals <- sum.list[[as.character(i.smpl)]]
+    clt.mu <- i.smpl * pop.mean              # CLT mean of the sum: n(a+b)/2
+    clt.sd <- sqrt(i.smpl * pop.var)         # CLT SD of the sum:   sqrt(n(b-a)^2/12)
+
+    graphics::hist(s.vals, breaks = 40, freq = FALSE,
+                   col = "lightgray", border = "white",
+                   main = paste("n =", i.smpl),
+                   xlab = "Sum(Xn)", ylab = "Density")
+    graphics::curve(dnorm(x, mean = clt.mu, sd = clt.sd),
+                    add = TRUE, col = "red", lwd = 2)  # CLT prediction
+  }
+  graphics::par(old.par)
+}
+
+# ---- Normal Q-Q plots for a few n: a sharper check of normality ----
+{
+  old.par <- graphics::par(mfrow = c(1, 3), mar = c(4, 4, 3, 1))
+  for (i.smpl in c(1, 2, 8)) {
+    s.vals <- sum.list[[as.character(i.smpl)]]
+    stats::qqnorm(s.vals, main = paste("Normal Q-Q, n =", i.smpl),
+                  pch = 20, cex = 0.4, col = "steelblue")
+    stats::qqline(s.vals, col = "red", lwd = 2)
+  }
+  graphics::par(old.par)
+}
+
+# ---- Numerical summary: mean, variance and excess kurtosis vs. theory ----
+ex.kurt <- function(v) mean((v - mean(v))^4) / var(v)^2 - 3   # sample excess kurtosis
+
+summary.tbl <- data.frame(
+  n             = smpl.sizes,
+  sim.mean      = sapply(sum.list, mean),
+  theory.mean   = smpl.sizes * pop.mean,
+  sim.var       = sapply(sum.list, var),
+  theory.var    = smpl.sizes * pop.var,
+  sim.exkurt    = sapply(sum.list, ex.kurt),
+  theory.exkurt = -1.2 / smpl.sizes           # excess kurtosis of a sum of n uniforms
+)
+print(round(summary.tbl, 3), row.names = FALSE)
+```
+**How the code works.** For each n ∈ {1, 2, 4, …, 256}, we draw 5000 independent samples of size n from U(0, 6), arranged as rows of a matrix, and use `rowSums()` to compute the sum S = X₁ + … + Xₙ for each sample. This gives 5000 realizations of S for each n. Each histogram is drawn on the density scale and overlaid with the normal curve the CLT predicts, N(n(a + b)/2, n(b − a)²/12). Each uniform variable has mean 3 and variance 3, and for independent variables the means and variances add. Normal Q-Q plots for n = 1, 2 and 8 test normality more sharply. Because the uniform distribution is symmetric, its skewness is zero at every n, so we track excess kurtosis instead (0 for a normal distribution, −1.2 for a single uniform, −1.2/n for the sum). That measures how far the shape of S is from normal.
+
+**Interpretation.** At n = 1, the "sum" is a single uniform variable: a flat, rectangular distribution with hard edges at 0 and 6 and no tails. The normal curve fits it poorly, and the Q-Q plot shows a clear S-shape because the extreme quantiles are cut off. At n = 2, the sum already becomes triangular (the sum of two uniforms), with a single peak in the middle. By n = 4–8, the histogram is visually indistinguishable from the normal curve and the Q-Q points lie on the line. The simulated mean and variance match n·3 and n·3 at every n, and the excess kurtosis shrinks toward 0 as −1.2/n. Convergence is much faster than for the exponential distribution in Q1.3, which needed n ≈ 16–32. The uniform distribution is symmetric, so the CLT only has to "fill in" the tails, whereas the exponential distribution's strong skew takes many more terms to average out. Together, Q1.3 and Q2.3 show that the CLT holds for any distribution with finite variance, but how quickly the sum looks normal depends on how far the starting distribution is from normal, especially on its asymmetry.
+
+### Question 3
+
+Run a simulation to study the dependence between the performance of confidence intervals, the sample size they were calculated on, and the shape of the random distribution generating the data.
+
+Specifically, for sample sizes ranging from 2 to 1000 (2,8,16,…,512,1024 or something like that):
+
+- draw several thousand samples of each size from: normal, exponential and uniform distributions,
+
+- calculate confidence interval of the mean for each of the samples from each of the three distributions independently (using confint for simplicity sake) and determine whether each of the confidence intervals contains the true mean (i.e. expected value) of the corresponding population that generated this sample (0 for normal, 1 for exponential with rate of one, 0.5 for uniform between zero and one).
+
+- For each sample size and for each of the three underlying distributions under study, calculate percentages F (“failure”) of simulations, in which confidence intervals do NOT contain true mean of the respective distributions. Present results as the plots of F vs sample size for each of the three distributions (draw all three lines in one plot). Describe in plain English how percentage of misses depends on sample size and shape of the distribution, from which the samples are drawn.
+
+This is supposed to be a very instructive exercise that should help you develop intuition about what “confidence” means for confidence intervals. You might find it easier to do it first for normal distribution and then repeat for uniform and exponential adjusting function generating it and true mean accordingly. Your answer can be structured according to the following outline:
+
+```{r Q3, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5.5, fig.width=8, results='show', cache=FALSE}
+
+set.seed(123)                                # reproducible results
+
+# sample sizes we are going to consider:
+n.smpl <- c(2, 4, 8, 16, 32, 64, 128, 256, 512, 1024)
+n.sim  <- 2000                               # number of resamplings for each sample size
+
+# true means (expected values) of the three populations
+mu.norm <- 0                                 # N(0, 1)
+mu.exp  <- 1                                 # Exp(rate = 1): mean = 1/rate = 1
+mu.unif <- 0.5                               # U(0, 1):       mean = (0 + 1)/2 = 0.5
+
+# storage vectors for failure percentages (reset here so re-running is safe)
+all.p.norm <- numeric()
+all.p.exp  <- numeric()
+all.p.unif <- numeric()
+
+for (i.smpl in n.smpl) {
+  # generate n.sim random samples of size i.smpl (each ROW is one sample)
+  r.mat.exp  <- matrix(rexp(i.smpl * n.sim, rate = 1),          nrow = n.sim, ncol = i.smpl)
+  r.mat.norm <- matrix(rnorm(i.smpl * n.sim, mean = 0, sd = 1), nrow = n.sim, ncol = i.smpl)
+  r.mat.unif <- matrix(runif(i.smpl * n.sim, min = 0, max = 1), nrow = n.sim, ncol = i.smpl)
+
+  # counters for CIs that do NOT contain the true mean
+  p.exp <- 0; p.norm <- 0; p.unif <- 0
+
+  for (i.sim in 1:n.sim) {
+    # 95% CI of the mean for the i.sim-th sample from each distribution
+    # (intercept of x ~ 1 is the sample mean; row 1 of confint() is its CI)
+    ci.norm <- confint(lm(x ~ 1, data.frame(x = r.mat.norm[i.sim, ])))
+    ci.exp  <- confint(lm(x ~ 1, data.frame(x = r.mat.exp[i.sim, ])))
+    ci.unif <- confint(lm(x ~ 1, data.frame(x = r.mat.unif[i.sim, ])))
+
+    # if the CI does NOT contain the true mean, add 1 to the counter
+    if (mu.norm < ci.norm[1, 1] || mu.norm > ci.norm[1, 2]) p.norm <- p.norm + 1
+    if (mu.exp  < ci.exp[1, 1]  || mu.exp  > ci.exp[1, 2])  p.exp  <- p.exp  + 1
+    if (mu.unif < ci.unif[1, 1] || mu.unif > ci.unif[1, 2]) p.unif <- p.unif + 1
+  }
+
+  # append the failure percentage F at this sample size to the storage vectors
+  all.p.norm <- c(all.p.norm, 100 * p.norm / n.sim)
+  all.p.exp  <- c(all.p.exp,  100 * p.exp  / n.sim)
+  all.p.unif <- c(all.p.unif, 100 * p.unif / n.sim)
+}
+
+# safety check: one F value per sample size for each distribution
+stopifnot(length(all.p.norm) == length(n.smpl),
+          length(all.p.exp)  == length(n.smpl),
+          length(all.p.unif) == length(n.smpl))
+
+# ---- Results table ----
+F.tbl <- data.frame(n         = n.smpl,
+                    F.normal  = all.p.norm,
+                    F.expon   = all.p.exp,
+                    F.uniform = all.p.unif)
+print(F.tbl, row.names = FALSE)
+
+# ---- Plot: F vs sample size, all three distributions ----
+# expected F is 5% (95% CIs); with n.sim draws, simulation noise alone gives
+# roughly 5% +/- 1.96*sqrt(0.05*0.95/n.sim)*100  (binomial 95% band)
+noise.band <- 1.96 * sqrt(0.05 * 0.95 / n.sim) * 100
+cat("Simulation noise band: ", round(5 - noise.band, 2), "% to ",
+    round(5 + noise.band, 2), "%\n", sep = "")
+
+{
+  y.max <- max(c(all.p.norm, all.p.exp, all.p.unif, 5 + noise.band)) * 1.15
+  graphics::plot(n.smpl, all.p.norm, type = "n", log = "x",
+                 ylim = c(0, y.max), xaxt = "n",
+                 xlab = "Sample size n (log scale)",
+                 ylab = "F: % of 95% CIs missing the true mean",
+                 main = "Confidence interval failure rate vs sample size",
+                 sub  = paste(n.sim, "simulations per sample size"))
+  graphics::axis(1, at = n.smpl, labels = n.smpl)
+  graphics::rect(min(n.smpl) / 2, 5 - noise.band, max(n.smpl) * 2, 5 + noise.band,
+                 col = "gray92", border = NA)                       # simulation-noise band
+  graphics::abline(h = 5, lty = 2, col = "gray40")                   # nominal 5%
+  graphics::lines(n.smpl, all.p.norm, type = "b", pch = 19, col = "black",     lwd = 2)
+  graphics::lines(n.smpl, all.p.exp,  type = "b", pch = 17, col = "tomato",    lwd = 2)
+  graphics::lines(n.smpl, all.p.unif, type = "b", pch = 15, col = "steelblue", lwd = 2)
+  graphics::legend("topright",
+                   legend = c("Normal N(0,1)", "Exponential (rate = 1)", "Uniform U(0,1)",
+                              "Nominal 5%", "Simulation noise band"),
+                   col = c("black", "tomato", "steelblue", "gray40", "gray92"),
+                   lty = c(1, 1, 1, 2, NA), pch = c(19, 17, 15, NA, 15),
+                   pt.cex = c(1, 1, 1, NA, 2), lwd = 2, bty = "n", cex = 0.85)
+}
+```
+
+**How the code works.** For each sample size n ∈ {2, 4, …, 1024}, we generate three matrices with 2000 rows each and n columns. Each row is one random sample of size n from N(0, 1), Exp(rate = 1) or U(0, 1), whose true means are 0, 1 and 0.5. The inner loop takes each row in turn, fits the intercept-only model `lm(x ~ 1)` (whose intercept is the sample mean), and gets the 95% confidence interval of the mean with `confint()`. Three `if` statements check whether each interval misses its distribution's true mean, i.e. whether the true mean lies below the lower bound or above the upper bound. If it does, that distribution's counter goes up by 1. After all 2000 samples, each counter is converted to a failure percentage F = 100 × misses / 2000 and appended to its storage vector. A `stopifnot()` check confirms there is exactly one F value per sample size. The plot shows F against sample size (log scale) for all three distributions. The dashed line marks the nominal 5% failure rate of a 95% interval, and the gray band marks the range expected from simulation noise alone, 5% ± 1.96·√(0.05·0.95/2000), i.e. 4.04% to 5.96%.
+
+**Interpretation.** A 95% confidence interval promises that, across many repeated samples, about 5% of intervals will miss the true mean. With 2000 simulations, chance alone puts the observed failure rate between 4.04% and 5.96% (gray band), so only points outside that band show a real departure from the promised 95% confidence.
+
+For the **normal** distribution, F stays inside the noise band at every sample size, from 5.05% at n = 2 to 5.30% at n = 1024. The t-interval's assumptions (normally distributed sample mean, chi-square distributed sample variance) hold exactly for normal data, so the interval achieves its nominal 95% coverage even at n = 2. Small samples give wide intervals, not wrong ones.
+
+For the **uniform** distribution, F is elevated only at the very smallest sample sizes (7.65% at n = 2 and 8.10% at n = 4). It falls into the noise band by n = 8 (5.45%) and stays there for all larger n (4.60–5.25%). The uniform distribution is not normal, but it is symmetric and has short tails, so its sample mean becomes nearly normal after only a handful of observations (as seen in Q2.3).
+
+For the **exponential** distribution, the intervals miss the true mean roughly twice as often as advertised at small n: 8.85–10.75% for n ≤ 8, and still 8.25–8.50% at n = 16–32. Their real confidence there is only about 90%, not 95%. The strong right skew makes the sample mean's distribution skewed at small n, and samples with an unusually large mean also tend to have a large SD, so the symmetric t-interval doesn't fit. F drops to 5.90% at n = 64, just inside the noise band, and stays within it from then on (4.80–5.65% for n ≥ 128), as the CLT makes the sample mean approximately normal.
+
+Overall, the "95%" in a 95% confidence interval is a property of the procedure that holds exactly only when its assumptions are met. With normal data it holds at every sample size, with symmetric non-normal data after a few observations, and with strongly skewed data only once the sample is large, about 64–128 observations here for the exponential. How large a sample must be for a t-based confidence interval to be trustworthy therefore depends on the shape of the underlying distribution, especially its skewness.
+
+## Part B: Applying it to real data
+
+### Question 4
+
+For this question, you will need to obtain a dataset from our duckDB database we set up in the first week. Separate the dataset into two groups by the outcome variable under study; in the UCI repository this is most often a categorical variable in the last column of the dataset, and if more than one outcome was studied, use the one with the greatest number of records. Take a random sample of 𝑛=30
+measurements from a selected column in each of the two groups, compute the difference in their means, and construct a 95% confidence interval for that difference using t.test(). Repeat this 1,000 times, keeping track of all the confidence intervals (the replicate() function is one convenient way to do this, returning a 2×1000 matrix of lower and upper bounds for the 1,000 replications). From these 1,000 replications, calculate:
+
+**4a**: The average length of the confidence interval.
+
+```{r Q4a, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+library(DBI)
+library(duckdb)
+
+#### Get the UCI Heart Failure data (works on any machine) ####
+# 1) project copy   2) course repoquet cache   3) download from UCI
+# The repoquet build could not finish (an unrelated UCI dataset, #891, repeatedly
+# failed to download), so the Heart Failure CSV is queried with DuckDB directly.
+local.file <- file.path("data", "heart_failure_clinical_records.csv")
+uci.url    <- "https://archive.ics.uci.edu/static/public/519/data.csv"
+
+if (!file.exists(local.file)) {
+  dir.create("data", showWarnings = FALSE)
+  cache.dir <- path.expand("~/repoquet_quick_example/formatted/SourceCache/UCI_HEALTH")
+  csvs <- list.files(cache.dir, pattern = "\\.csv$", full.names = TRUE)
+
+  # find the heart failure file in the cache (the one with a DEATH_EVENT column)
+  con.tmp <- dbConnect(duckdb::duckdb())
+  has.hf  <- vapply(csvs, function(f) {
+    cols <- dbGetQuery(con.tmp, sprintf("DESCRIBE SELECT * FROM read_csv_auto('%s')", f))$column_name
+    "DEATH_EVENT" %in% toupper(cols)
+  }, logical(1))
+  dbDisconnect(con.tmp, shutdown = TRUE)
+
+  if (any(has.hf)) {
+    file.copy(csvs[has.hf][1], local.file)                 # from the course cache
+    cat("Copied from the repoquet cache\n")
+  } else {
+    download.file(uci.url, local.file, mode = "wb")        # from UCI directly
+    cat("Downloaded from UCI\n")
+  }
+}
+local.file
+
+#### Load it into DuckDB as a table and confirm it (as in Week 1) ####
+con <- dbConnect(duckdb::duckdb())         # DuckDB session (in memory)
+dbExecute(con, sprintf("CREATE TABLE heart_failure AS SELECT * FROM read_csv_auto('%s')", local.file))
+dbListTables(con)                                      # "heart_failure"
+print(dbGetQuery(con, 'DESCRIBE "heart_failure"'))     # column names and types
+dbGetQuery(con, 'SELECT COUNT(*) AS n_patients FROM "heart_failure"')   # 299
+
+#### Pull the data with SQL ####
+dat <- dbGetQuery(con, 'SELECT * FROM "heart_failure"')
+dbDisconnect(con, shutdown = TRUE)         # data is now in R's memory
+names(dat) <- tolower(names(dat))          # DEATH_EVENT -> death_event
+
+#### Outcome and measurement column ####
+outcome     <- "death_event"               # same outcome as Week 2 (all binary columns complete)
+measure.col <- "ejection_fraction"         # % of blood pumped out of the heart per beat
+
+dat[[outcome]]     <- factor(as.character(dat[[outcome]]), levels = c("0", "1"),
+                             labels = c("Survived", "Died"))
+dat[[measure.col]] <- as.numeric(as.character(dat[[measure.col]]))
+dat <- dat[!is.na(dat[[outcome]]) & !is.na(dat[[measure.col]]), ]
+table(dat[[outcome]])                      # 203 Survived, 96 Died
+
+#### Split into the two groups ####
+x.surv <- dat[[measure.col]][dat[[outcome]] == "Survived"]
+x.died <- dat[[measure.col]][dat[[outcome]] == "Died"]
+stopifnot(length(x.surv) >= 30, length(x.died) >= 30)
+
+full.diff <- mean(x.died) - mean(x.surv)   # difference in the full dataset
+cat("Full-data means: Died =", round(mean(x.died), 2),
+    "| Survived =", round(mean(x.surv), 2),
+    "| difference (Died - Survived) =", round(full.diff, 2), "\n")
+
+#### 1000 replications: n = 30 per group, 95% CI for difference in means ####
+set.seed(123)
+n     <- 30
+n.rep <- 1000
+
+rep.res <- replicate(n.rep, {
+  s.died <- sample(x.died, n)                # 30 random patients who died
+  s.surv <- sample(x.surv, n)                # 30 random patients who survived
+  tt <- t.test(s.died, s.surv)               # Welch two-sample t-test, 95% CI
+  c(lower = tt$conf.int[1],
+    upper = tt$conf.int[2],
+    diff  = mean(s.died) - mean(s.surv))
+})
+
+ci.mat   <- rep.res[c("lower", "upper"), ]   # 2 x 1000 matrix of CI bounds
+diff.vec <- rep.res["diff", ]                # 1000 differences in means
+dim(ci.mat)
+
+#### (a) Average length of the confidence interval ####
+ci.len   <- ci.mat["upper", ] - ci.mat["lower", ]
+mean.len <- mean(ci.len)
+cat("Average 95% CI length:", round(mean.len, 3), "percentage points\n")
+print(summary(ci.len))
+
+{
+  graphics::hist(ci.len, breaks = 40, col = "lightgray", border = "white",
+                 main = "Lengths of 1000 95% CIs for the difference in mean ejection fraction\n(Died vs Survived, n = 30 per group)",
+                 xlab = "CI length (percentage points)")
+  graphics::abline(v = mean.len, col = "red", lwd = 2)
+  graphics::legend("topright", legend = paste("Mean length =", round(mean.len, 2)),
+                   col = "red", lwd = 2, bty = "n")
+}
+```
+**Data source note.** The course repoquet repository could not be rebuilt because an unrelated UCI dataset (#891, CDC Diabetes Health Indicators) repeatedly failed to download, which blocks the schema step for all tables. The UCI Heart Failure Clinical Records file (#519) had downloaded successfully, so it is loaded into DuckDB directly and queried with SQL (`dbListTables()`, `DESCRIBE`, `SELECT`). For reproducibility, a copy is kept in the project's `data/` folder; if it is missing, the code takes it from the repoquet cache or downloads it from UCI.
+
+**How the code works.** The UCI Heart Failure Clinical Records dataset contains 299 patients. The outcome is `death_event` (the last column, and the outcome the study was designed around; all binary columns have complete records, so it also meets the "most records" rule). It splits patients into those who died during follow-up (n = 96) and those who survived (n = 203). The measurement is `ejection_fraction`, the percentage of blood the left ventricle pumps out with each beat. We use `replicate()` to repeat the following 1000 times: draw 30 random patients from each group, run `t.test()` (Welch two-sample test) on their ejection fractions, and keep the lower and upper bounds of the 95% confidence interval for the difference in means (Died − Survived), along with the observed difference. This gives the 2 × 1000 matrix `ci.mat` of interval bounds. The length of each interval is upper − lower, and part (a) is their average.
+
+**(a) Interpretation.** The average 95% confidence interval for the difference in mean ejection fraction was **12.09 percentage points** wide (median 12.13, range 8.62 to 14.99). The width reflects the uncertainty of estimating a difference in means from only 30 patients per group: it is roughly 2 × t₀.₉₇₅ × √(s₁²/30 + s₂²/30), so it depends on how variable ejection fraction is within each group and on the sample size. The lengths vary between replications, as the histogram shows, because each sample gives a different estimate of the group standard deviations. For comparison, the full dataset shows a difference of −6.80 percentage points (Died 33.47% vs Survived 40.27%), so a typical interval is almost twice as wide as the effect itself. Any single sample of 30 patients per group therefore gives a fairly imprecise estimate of how large the difference is.
+
+**4b**: The population-level difference (the difference between the two groups’ means computed on the full dataset).
+
+```{r Q4b, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+#### (b) Population-level difference: full-dataset group means ####
+pop.mean.died <- mean(x.died)              # all 96 patients who died
+pop.mean.surv <- mean(x.surv)              # all 203 patients who survived
+pop.diff      <- pop.mean.died - pop.mean.surv
+
+pop.tbl <- data.frame(
+  group = c("Died", "Survived", "Difference (Died - Survived)"),
+  N     = c(length(x.died), length(x.surv), NA),
+  mean.ejection.fraction = round(c(pop.mean.died, pop.mean.surv, pop.diff), 3))
+print(pop.tbl, row.names = FALSE)
+
+#### Compare with the 1000 sample differences from part (a) ####
+cat("Population-level difference:          ", round(pop.diff, 3), "\n")
+cat("Mean of the 1000 sample differences:  ", round(mean(diff.vec), 3), "\n")
+cat("SD of the 1000 sample differences:    ", round(sd(diff.vec), 3), "\n")
+
+#### Plot: sampling distribution of the difference, with the population value ####
+{
+  graphics::hist(diff.vec, breaks = 40, col = "lightgray", border = "white",
+                 main = "1000 sample differences in mean ejection fraction\n(Died - Survived, n = 30 per group)",
+                 xlab = "Difference in means (percentage points)")
+  graphics::abline(v = pop.diff,       col = "red",  lwd = 2)          # population value
+  graphics::abline(v = mean(diff.vec), col = "blue", lwd = 2, lty = 2) # average of samples
+  graphics::abline(v = 0,              col = "gray40", lty = 3)        # no difference
+  graphics::legend("topleft",
+                   legend = c(paste("Population difference =", round(pop.diff, 2)),
+                              paste("Mean of sample differences =", round(mean(diff.vec), 2)),
+                              "No difference (0)"),
+                   col = c("red", "blue", "gray40"), lty = c(1, 2, 3), lwd = c(2, 2, 1),
+                   bty = "n", cex = 0.85)
+}
+```
+
+**How the code works.** The population-level difference is computed from all patients in the dataset rather than from samples: the mean ejection fraction of all 96 patients who died minus that of all 203 who survived. Here we treat the full dataset of 299 patients as the "population" that the samples in part (a) were drawn from. For comparison, we also compute the mean and standard deviation of the 1000 sample differences from part (a). The histogram shows their distribution, with the population difference (red), the average of the sample differences (blue, dashed) and zero (gray, dotted).
+
+**(b) Interpretation.** The population-level difference in mean ejection fraction is **−6.80 percentage points**: patients who died had an average ejection fraction of 33.47%, compared with 40.27% for those who survived. In other words, the hearts of patients who died were, on average, pumping out a noticeably smaller share of blood with each beat, which fits with ejection fraction being a key marker of heart failure severity. The 1000 sample differences from part (a) are centred on this value (mean __), so the difference in sample means is an unbiased estimator of the population difference. Individual samples, however, scatter widely around it (SD __ percentage points), so a single study with 30 patients per group could easily over- or underestimate the true difference by several percentage points. The population difference is the "true value" that each confidence interval in part (a) is trying to capture; how often they actually capture it can be checked by counting the intervals that contain −6.80.
+
+**4c**: How often the 1,000 confidence intervals actually contain that population-level difference.
+
+```{r Q4c, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=6, fig.width=8, results='show', cache=FALSE}
+
+#### (c) How often do the 1000 CIs contain the population-level difference? ####
+covered <- ci.mat["lower", ] <= pop.diff & ci.mat["upper", ] >= pop.diff
+
+n.covered <- sum(covered)
+coverage  <- mean(covered)
+cat("CIs containing the population difference:", n.covered, "of", n.rep,
+    "=", round(100 * coverage, 1), "%\n")
+
+# Which side do the misses fall on?
+miss.low  <- sum(ci.mat["upper", ] < pop.diff)   # whole CI below the true value
+miss.high <- sum(ci.mat["lower", ] > pop.diff)   # whole CI above the true value
+cat("Misses: CI entirely below =", miss.low, "| CI entirely above =", miss.high, "\n")
+
+# Expected range from chance alone if true coverage were exactly 95%
+noise <- 1.96 * sqrt(0.95 * 0.05 / n.rep) * 100
+cat("Expected from chance alone: 95% +/-", round(noise, 2), "% (",
+    round(95 - noise, 1), "% to", round(95 + noise, 1), "%)\n")
+
+#### Plot: first 100 confidence intervals, coloured by whether they cover ####
+{
+  k   <- 1:100
+  col <- ifelse(covered[k], "steelblue", "red")
+  graphics::plot(range(ci.mat[, k]), c(1, 100), type = "n",
+                 xlab = "95% CI for difference in mean ejection fraction (Died - Survived)",
+                 ylab = "Replication",
+                 main = paste0("First 100 of 1000 confidence intervals\n(overall coverage = ",
+                               round(100 * coverage, 1), "%)"))
+  graphics::segments(ci.mat["lower", k], k, ci.mat["upper", k], k, col = col, lwd = 1.5)
+  graphics::points(diff.vec[k], k, pch = 20, cex = 0.6, col = col)        # sample difference
+  graphics::abline(v = pop.diff, col = "black", lwd = 2)                   # population value
+  graphics::abline(v = 0, col = "gray50", lty = 3)                         # no difference
+  graphics::legend("topright", bty = "n", cex = 0.8,
+                   legend = c("Contains population difference", "Misses population difference",
+                              paste("Population difference =", round(pop.diff, 2)), "Zero"),
+                   col = c("steelblue", "red", "black", "gray50"),
+                   lty = c(1, 1, 1, 3), lwd = c(1.5, 1.5, 2, 1))
+}
+```
+
+Repeat this analysis for the remaining columns in the dataset and describe the results. Then calculate the confidence interval of the difference using the entire dataset (rather than repeated samples of 𝑛=30) and compare it, visually and in your written interpretation, to the distribution of the randomly sampled confidence intervals.
+
+```{r Q4d, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=10, fig.width=10, results='show', cache=FALSE}
+
+#### Q4 (continued): repeat (a)-(c) for every continuous column, plus full-dataset CI ####
+
+num.cols <- c("age", "creatinine_phosphokinase", "ejection_fraction", "platelets",
+              "serum_creatinine", "serum_sodium", "time")
+dat[num.cols] <- lapply(dat[num.cols], function(x) as.numeric(as.character(x)))
+
+idx.died <- which(dat[[outcome]] == "Died")       # 96 patients
+idx.surv <- which(dat[[outcome]] == "Survived")   # 203 patients
+
+#### Draw the 1000 random patient subsets ONCE and reuse them for every column ####
+# Same seed and draw order as Q4a, so ejection_fraction reproduces parts (a)-(c) exactly
+set.seed(123)
+samp <- replicate(n.rep, list(d = sample(idx.died, n), s = sample(idx.surv, n)),
+                  simplify = FALSE)
+
+#### Analyse one column: sampled CIs, population difference, coverage, full-data CI ####
+analyse_col <- function(col) {
+  x  <- dat[[col]]
+  xd <- x[idx.died]; xs <- x[idx.surv]
+
+  res <- vapply(samp, function(sm) {
+    tt <- t.test(x[sm$d], x[sm$s])
+    c(tt$conf.int[1], tt$conf.int[2], mean(x[sm$d]) - mean(x[sm$s]))
+  }, numeric(3))
+  lower <- res[1, ]; upper <- res[2, ]; diffs <- res[3, ]
+
+  pop.diff <- mean(xd) - mean(xs)                    # population-level difference
+  full     <- t.test(xd, xs)                         # CI using the ENTIRE dataset
+
+  list(col = col, lower = lower, upper = upper, diffs = diffs,
+       pop.diff = pop.diff, full.ci = full$conf.int, full.p = full$p.value,
+       mean.died = mean(xd), mean.surv = mean(xs))
+}
+
+results <- lapply(num.cols, analyse_col)
+names(results) <- num.cols
+
+#### Summary table: (a) average CI length, (b) population difference, (c) coverage ####
+summ <- do.call(rbind, lapply(results, function(r) {
+  len <- r$upper - r$lower
+  data.frame(
+    column           = r$col,
+    mean.died        = r$mean.died,
+    mean.survived    = r$mean.surv,
+    pop.diff         = r$pop.diff,
+    avg.CI.len.n30   = mean(len),
+    coverage.pct     = 100 * mean(r$lower <= r$pop.diff & r$upper >= r$pop.diff),
+    pct.excl.zero    = 100 * mean(r$lower > 0 | r$upper < 0),   # how often n=30 detects a difference
+    full.CI.lower    = r$full.ci[1],
+    full.CI.upper    = r$full.ci[2],
+    full.CI.len      = diff(r$full.ci),
+    len.ratio        = mean(len) / diff(r$full.ci),             # sampled / full width
+    full.p           = r$full.p)
+}))
+rownames(summ) <- NULL
+knitr::kable(summ, digits = 3,
+             caption = "Repeated n = 30 samples vs the full dataset, every continuous column (Died - Survived)")
+
+#### Figure 1: 100 sampled CIs vs the full-dataset CI, one panel per column ####
+{
+  op <- graphics::par(mfrow = c(3, 3), mar = c(4, 3, 3, 1))
+  for (r in results) {
+    k   <- 1:100
+    ord <- order(r$diffs[k])                          # sort by sample difference
+    lo  <- r$lower[k][ord]; up <- r$upper[k][ord]
+    graphics::plot(range(c(lo, up, r$full.ci)), c(1, 100), type = "n", yaxt = "n",
+                   xlab = "Difference in means (Died - Survived)", ylab = "",
+                   main = r$col)
+    graphics::rect(r$full.ci[1], -5, r$full.ci[2], 105,
+                   col = rgb(0.8, 0.1, 0.1, 0.25), border = NA)    # full-dataset CI
+    graphics::segments(lo, k, up, k, col = "grey40")               # sampled CIs (n = 30)
+    graphics::abline(v = r$pop.diff, col = "firebrick", lwd = 2)   # population difference
+    graphics::abline(v = 0, lty = 3)                               # no difference
+  }
+  graphics::plot.new()
+  graphics::legend("center", bty = "n", cex = 1,
+                   legend = c("Sampled 95% CIs (n = 30/group)", "Full-dataset 95% CI",
+                              "Population difference", "Zero"),
+                   col = c("grey40", rgb(0.8, 0.1, 0.1, 0.4), "firebrick", "black"),
+                   lty = c(1, NA, 1, 3), lwd = c(1, NA, 2, 1),
+                   pch = c(NA, 15, NA, NA), pt.cex = 2.5)
+  graphics::par(op)
+}
+
+#### Figure 2: distribution of sampled CI lengths vs the full-dataset CI length ####
+{
+  op <- graphics::par(mfrow = c(3, 3), mar = c(4, 3, 3, 1))
+  for (r in results) {
+    len <- r$upper - r$lower
+    graphics::hist(len, breaks = 30, col = "lightgray", border = "white",
+                   xlim = range(c(0, len)), main = r$col, xlab = "CI length")
+    graphics::abline(v = mean(len),     col = "grey20",    lwd = 2, lty = 2)  # average n=30 length
+    graphics::abline(v = diff(r$full.ci), col = "firebrick", lwd = 2)         # full-data length
+  }
+  graphics::plot.new()
+  graphics::legend("center", bty = "n",
+                   legend = c("Average sampled CI length (n = 30)", "Full-dataset CI length"),
+                   col = c("grey20", "firebrick"), lty = c(2, 1), lwd = 2)
+  graphics::par(op)
+}
+```
+**How the code works.** For each of the 1000 replications from part (a), we check whether the 95% confidence interval contains the population-level difference from part (b), i.e. whether lower ≤ −6.80 ≤ upper. The proportion of intervals that pass is the empirical coverage. We also count which side the misses fall on (interval entirely below or entirely above the true value), and compute the range we would expect from chance alone if the true coverage were exactly 95% (95% ± 1.96·√(0.95·0.05/1000) ≈ 93.6%–96.4%). The plot shows the first 100 intervals as horizontal lines: blue if they contain the population difference (black vertical line), red if they miss it.
+
+**(c) Interpretation.** __ of the 1000 intervals (__%) contained the population-level difference of −6.80 percentage points; __ missed entirely below it and __ entirely above it. This is what "95% confidence" means in practice: the 95% describes the procedure, not any single interval. Each interval either contains the true difference or it does not, but if we repeat the sampling and interval construction many times, about 95% of the intervals should capture the true value.
+
+The observed coverage is [slightly above / close to] the nominal 95%. [If above 96.4%:] The intervals are somewhat conservative here because we sample without replacement from a small, finite population: each sample of 30 includes nearly a third of the 96 patients who died, so the sample means vary less than `t.test()` assumes (its formula treats the population as infinitely large). The intervals are therefore slightly wider than needed and capture the true difference more often than 95%. This is the finite population correction, √((N − n)/(N − 1)), about 0.83 for the Died group and 0.93 for the Survived group. Unlike the skewed exponential data in Question 3, where intervals missed more often than promised, ejection fraction is roughly symmetric within each group, so with n = 30 the t-interval's normality assumption is not a concern and the departure from 95% comes from the finite population alone. Also note that the population difference (−6.80) lies well away from zero, and most intervals in the plot exclude zero. With 30 patients per group, most samples would correctly detect that patients who died had lower ejection fractions.
+
+
+### Question 5
+
+For this question, you will need a GEO dataset (RNAseq or microarray) with a continuous phenotype or metadata variable attached to its samples, downloaded with the GEODataDownload() function as in previous weeks’ homeworks; the dataset you used in Week 3 is a fine choice to reuse if it still fits, otherwise pick a new GEO accession that provides a continuous variable to regress against. Build a linear model of the continuous variable as a function of expression for every gene in the dataset, and use confint() to obtain the confidence interval on the expression coefficient for each model (no need to calculate the intervals manually). Order the genes by their statistical relationship to the continuous variable (e.g., by p-value), and plot the confidence interval for every gene in that order. Then report the confidence intervals specifically for the gene with the strongest and the gene with the weakest relationship to the continuous variable, and describe, in plain English, what the width and position of these intervals tell you about how much you should trust each gene’s estimated effect.
+
+
+```{r Q5setup, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+#### Q5 setup: GSE11882 (GPL570 array), continuous variable = age (as in Week 3) ####
+library(limma); library(data.table)
+
+q5_rds <- "GSE11882_Q5_data.rds"    # saved result of this chunk (fast reload when knitting)
+
+if (file.exists(q5_rds)) {
+  #### Fast path: reload the prepared objects ####
+  q5 <- readRDS(q5_rds)
+  Dat <- q5$Dat; age <- q5$age; exprNorm <- q5$exprNorm
+  rm(q5)
+  cat("Loaded prepared data from", q5_rds, "\n")
+
+} else {
+  #### Slow path (first run only): download/parse, then save ####
+  if (!requireNamespace("BiocManager", quietly = TRUE)) install.packages("BiocManager")
+  pkgs <- c("GEOquery", "limma", "DESeq2", "org.Hs.eg.db", "data.table", "knitr")
+  missing <- pkgs[!sapply(pkgs, requireNamespace, quietly = TRUE)]
+  if (length(missing)) BiocManager::install(missing)
+  if (!requireNamespace("curl", quietly = TRUE) || packageVersion("curl") < "5.0.0") install.packages("curl")
+  library(GEOquery); library(org.Hs.eg.db)
+  options(timeout = 1200)
+
+  DS  <- "GSE11882"
+  gpl <- "GPL570"
+
+  #### Download helper: retries and RESUMES interrupted downloads ####
+  download_with_retry <- function(url, dest, expected_size, tries = 10) {
+    for (k in seq_len(tries)) {
+      if (file.exists(dest) && file.size(dest) == expected_size) return(invisible(TRUE))
+      try(curl::multi_download(url, dest, resume = TRUE, progress = TRUE), silent = TRUE)
+      if (file.exists(dest) && file.size(dest) == expected_size) return(invisible(TRUE))
+      message("Attempt ", k, " incomplete (",
+              round(ifelse(file.exists(dest), file.size(dest), 0) / 1e6, 1),
+              " MB so far); resuming...")
+      Sys.sleep(3)
+    }
+    stop("Download failed after ", tries, " attempts: ", url)
+  }
+
+  # Download the GEO files into a GEOcache folder next to this Rmd (Week4)
+  cache_dir <- "GEOcache"
+  dir.create(cache_dir, showWarnings = FALSE)
+  gse_file <- file.path(cache_dir, "GSE11882_series_matrix.txt.gz")
+  download_with_retry(
+    "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE11nnn/GSE11882/matrix/GSE11882_series_matrix.txt.gz",
+    gse_file, expected_size = 41282166)
+  stopifnot(file.size(gse_file) == 41282166)          # complete file
+
+  #### Parse the series matrix ONCE, adding the probe IDs GEODataDownload() needs ####
+  gset0 <- GEOquery::getGEO(filename = gse_file, getGPL = FALSE)
+  if (ncol(fData(gset0)) == 0) {
+    fData(gset0) <- data.frame(ID = featureNames(gset0), row.names = featureNames(gset0))
+  }
+  # Temporary wrapper: GEODataDownload() calls getGEO() again -> hand back the parsed copy
+  getGEO <- function(...) {
+    args <- list(...)
+    if (!is.null(args$filename) && normalizePath(args$filename) == normalizePath(gse_file)) return(gset0)
+    GEOquery::getGEO(...)
+  }
+
+  #### Week 1 Part 3: GEODataDownload() (array branch; reads the local cache) ####
+  GEODataDownload <- function(DS, gpl, gsm, PlateAnnotInfo, GenerateMetaData, Technology){
+    library(DESeq2); library(limma); library(data.table)
+    if(Technology == "Array"){
+      gse_local <- file.path(cache_dir, paste0(DS, "_series_matrix.txt.gz"))
+      gset <- if (file.exists(gse_local)) list(getGEO(filename = gse_local, getGPL = FALSE)) else getGEO(DS)
+      if(length(gset) > 1) idx <- grep(gpl, attr(gset, "names")) else idx <- 1
+      gset <- gset[[idx]]
+      fvarLabels(gset) <- make.names(fvarLabels(gset))
+      comp <- gsub(" ", "", gsm)
+      comp <- gsub(",", "", comp)
+      gsms <- paste0(comp)
+      sml <- c()
+      for(i in 1:nchar(gsms)){ sml[i] <- substr(gsms,i,i)}
+      ex <- exprs(gset)
+      qx <- as.numeric(quantile(ex, c(0., 0.25, 0.5, 0.75, 0.99, 1.0), na.rm=T))
+      LogC <- (qx[5] > 100) ||
+        (qx[6]-qx[1] > 50 && qx[2] > 0) ||
+        (qx[2] > 0 && qx[2] < 1 && qx[4] < 2)
+      if(LogC){ ex[which(ex <= 0)] <- NaN
+      exprs(gset) <- log2(ex) }
+      sml <- paste("G", sml, sep="")
+      f1 <- as.factor(sml)
+      gset$description2 <- f1
+      design <- model.matrix(~description2 + 0, gset)
+      colnames(design) <- levels(f1)
+      fit <- lmFit(gset, design)
+      cont.matrix <- makeContrasts(G1-G0, levels = design)
+      fit2 <- contrasts.fit(fit, cont.matrix)
+      fit2 <- eBayes(fit2, 0.01)
+      tT <- topTable(fit2, adjust="fdr", sort.by = "B", number = 25000000000)
+      ex2 <- data.table(subset(tT, select=c("ID", "logFC", "P.Value", "adj.P.Val")))
+      ex2$ID <- as.character(ex2$ID)
+      plat <- PlateAnnotInfo[GPLID == gpl,][,!"GPLID", with = FALSE]
+      if(nrow(plat) == 0){ print(paste("There is no annotation information available for", gpl)) }
+      plat$ID <- as.character(plat$ID)
+      plat <- plat[!duplicated(plat$ID),]
+      ex2 <- merge(plat, ex2, by = "ID")
+      ex2$ID <- as.character(ex2$ID)
+      exraw <- data.table(ex)
+      exraw$ID <- as.character(rownames(ex))
+      ex2 <- merge(ex2, exraw, by = "ID")
+      Pdat <- as.data.table(pData(gset))
+      return(list(Data = ex2, MetaData = Pdat))
+    }
+  }
+
+  #### GPL570 probe annotation table (downloaded into GEOcache, with retries) ####
+  z <- NULL
+  for (k in 1:5) {
+    gpl_cached <- list.files(cache_dir, pattern = "^GPL570\\.soft", full.names = TRUE)
+    z <- tryCatch(
+      if (length(gpl_cached)) GEOquery::getGEO(filename = gpl_cached[1])
+      else GEOquery::getGEO("GPL570", destdir = cache_dir),
+      error = function(e) {
+        message("GPL570 attempt ", k, " failed: ", conditionMessage(e), " - retrying...")
+        unlink(list.files(cache_dir, pattern = "^GPL570\\.soft", full.names = TRUE))  # drop partial file
+        NULL
+      })
+    if (!is.null(z)) break
+    Sys.sleep(3)
+  }
+  if (is.null(z)) stop("Could not download GPL570 annotation after 5 attempts")
+
+  PlateAnnotInfo <- as.data.table(z@dataTable@table)
+  PlateAnnotInfo <- PlateAnnotInfo[,c("ID", "Gene Symbol", "ENTREZ_GENE_ID"), with = FALSE]
+  PlateAnnotInfo$`Gene Symbol` <- gsub(" ///.+", "", PlateAnnotInfo$`Gene Symbol`)
+  PlateAnnotInfo$ENTREZ_GENE_ID <- gsub(" ///.+", "", PlateAnnotInfo$ENTREZ_GENE_ID)
+  PlateAnnotInfo <- PlateAnnotInfo[!PlateAnnotInfo$`Gene Symbol` == "",]
+  setnames(PlateAnnotInfo, c("Gene Symbol", "ENTREZ_GENE_ID"), c("SYMBOL", "ENTREZID"))
+  PlateAnnotInfo <- PlateAnnotInfo[!is.na(ENTREZID),]
+  PlateAnnotInfo <- PlateAnnotInfo[!ENTREZID == "",]
+  PlateAnnotInfo$ENTREZID <- as.character(PlateAnnotInfo$ENTREZID)
+  mappings <- AnnotationDbi::select(org.Hs.eg.db, keys=PlateAnnotInfo$ENTREZID, columns=c("GENENAME"), keytype="ENTREZID")
+  PlateAnnotInfo <- unique(merge(PlateAnnotInfo, mappings, by = "ENTREZID", allow.cartesian = TRUE))
+  PlateAnnotInfo <- PlateAnnotInfo[,c("ID", "ENTREZID", "SYMBOL", "GENENAME")]
+  PlateAnnotInfo$GPLID <- "GPL570"
+  rm(z)
+
+  #### Age from the sample metadata ####
+  get_age <- function(meta) {
+    meta    <- as.data.frame(meta, check.names = FALSE)
+    age_col <- grep("^age", names(meta), ignore.case = TRUE, value = TRUE)[1]
+    if (is.na(age_col)) stop("No age column found")
+    as.numeric(gsub("[^0-9.]", "", meta[[age_col]]))   # "45 yrs" -> 45
+  }
+  age0 <- get_age(pData(gset0))
+  gsm  <- paste(ifelse(age0 >= median(age0), 1, 0), collapse = "")   # 2-group string for limma
+
+  ArrayData <- GEODataDownload(DS = DS, gpl = gpl, gsm = gsm,
+                               PlateAnnotInfo = PlateAnnotInfo, Technology = "Array")
+  rm(getGEO, gset0)                            # back to the normal GEOquery::getGEO
+
+  #### Expression matrix, age vector, quantile normalization (Week 3 Q4) ####
+  Dat  <- as.data.frame(ArrayData[["Data"]])
+  Meta <- as.data.frame(ArrayData[["MetaData"]], check.names = FALSE)
+
+  sample_cols <- grep("^GSM", names(Dat), value = TRUE)
+  exprMat <- as.matrix(Dat[, sample_cols])
+  rownames(exprMat) <- Dat$ID
+
+  Meta <- Meta[match(sample_cols, Meta$geo_accession), ]
+  age  <- get_age(Meta)
+  stopifnot(identical(Meta$geo_accession, sample_cols), length(age) == ncol(exprMat), !anyNA(age))
+
+  exprNorm <- normalizeBetweenArrays(exprMat, method = "quantile")
+  dimnames(exprNorm) <- dimnames(exprMat)
+
+  #### Save for fast reloads (keep only what Q5 needs) ####
+  saveRDS(list(Dat = Dat[, c("ID", "SYMBOL")], age = age, exprNorm = exprNorm), q5_rds)
+  cat("Saved prepared data to", q5_rds, "\n")
+}
+
+dim(exprNorm)                                  # 44,134 probes x 173 samples
+summary(age)
+```
+
+
+```{r Q5, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=6, fig.width=10, results='show', cache=FALSE}
+
+#### Q5: per-gene linear model age ~ expression, CI of the slope with confint() ####
+
+# One gene: fit the model, return slope, its 95% CI (confint), and p-value
+gene_ci <- function(expression, age) {
+  tryCatch({
+    fit <- lm(age ~ expression)
+    ci  <- confint(fit, "expression", level = 0.95)
+    co  <- summary(fit)$coefficients
+    c(estimate = co["expression", "Estimate"],
+      lower    = ci[1, 1],
+      upper    = ci[1, 2],
+      p.value  = co["expression", "Pr(>|t|)"])
+  }, error = function(e) c(estimate = NA, lower = NA, upper = NA, p.value = NA))
+}
+
+# Debug on the first 100 genes
+test_ci <- t(sapply(1:100, function(i) gene_ci(exprNorm[i, ], age)))
+head(test_ci)
+
+# Full run over all probes (takes a few minutes)
+system.time(
+  ci.mat5 <- t(vapply(seq_len(nrow(exprNorm)),
+                      function(i) gene_ci(exprNorm[i, ], age),
+                      numeric(4)))
+)
+rownames(ci.mat5) <- rownames(exprNorm)
+
+ci.tbl <- data.frame(probe    = rownames(ci.mat5),
+                     SYMBOL   = Dat$SYMBOL[match(rownames(ci.mat5), Dat$ID)],
+                     ci.mat5,
+                     width    = ci.mat5[, "upper"] - ci.mat5[, "lower"],
+                     sd.expr  = apply(exprNorm, 1, sd, na.rm = TRUE),
+                     row.names = NULL)
+cat("Models that could not be fitted:", sum(is.na(ci.tbl$p.value)), "\n")
+ci.tbl <- ci.tbl[!is.na(ci.tbl$p.value), ]
+
+#### Order genes by strength of relationship (p-value, smallest first) ####
+ci.tbl <- ci.tbl[order(ci.tbl$p.value), ]
+ci.tbl$rank <- seq_len(nrow(ci.tbl))
+excl.zero   <- ci.tbl$lower > 0 | ci.tbl$upper < 0     # CI does not contain 0
+cat("CIs excluding zero:", sum(excl.zero), "of", nrow(ci.tbl), "\n")
+
+#### Plot 1: CI for every gene, in p-value order ####
+{
+  ylim.clip <- quantile(c(ci.tbl$lower, ci.tbl$upper), c(0.01, 0.99))   # clip extreme widths
+  graphics::plot(range(ci.tbl$rank), ylim.clip, type = "n",
+                 xlab = "Genes ranked by p-value (strongest -> weakest)",
+                 ylab = "95% CI of slope (years per unit expression)",
+                 main = "95% confidence intervals of the expression coefficient, all genes\n(age ~ expression, GSE11882, quantile normalized)",
+                 sub  = "y-axis clipped at the 1st-99th percentile of CI bounds")
+  graphics::segments(ci.tbl$rank, ci.tbl$lower, ci.tbl$rank, ci.tbl$upper,
+                     col = ifelse(excl.zero, rgb(0.8, 0.1, 0.1, 0.3), rgb(0.4, 0.4, 0.4, 0.3)))
+  graphics::abline(h = 0, lty = 2)
+  graphics::legend("topright", bty = "n", cex = 0.85, lwd = 2,
+                   legend = c("CI excludes 0", "CI includes 0"),
+                   col = c(rgb(0.8, 0.1, 0.1), "grey40"))
+}
+
+#### Plot 2: zoom on the 50 strongest and the 50 weakest genes ####
+{
+  op <- graphics::par(mfrow = c(1, 2), mar = c(4, 4, 3, 1))
+  for (part in c("strong", "weak")) {
+    idx <- if (part == "strong") 1:50 else (nrow(ci.tbl) - 49):nrow(ci.tbl)
+    d   <- ci.tbl[idx, ]
+    graphics::plot(d$rank, d$estimate, pch = 19, cex = 0.6,
+                   ylim = range(c(d$lower, d$upper, 0)),
+                   xlab = "Rank by p-value", ylab = "Slope and 95% CI (years per unit)",
+                   main = if (part == "strong") "50 strongest genes" else "50 weakest genes")
+    graphics::segments(d$rank, d$lower, d$rank, d$upper,
+                       col = ifelse(d$lower > 0 | d$upper < 0, "firebrick", "grey40"))
+    graphics::abline(h = 0, lty = 2)
+  }
+  graphics::par(op)
+}
+
+#### Strongest and weakest gene: report their CIs ####
+extreme5 <- ci.tbl[c(1, nrow(ci.tbl)), ]
+extreme5$case <- c("Strongest", "Weakest")
+knitr::kable(extreme5[, c("case", "probe", "SYMBOL", "estimate", "lower", "upper",
+                          "width", "p.value", "sd.expr")],
+             digits = 3, row.names = FALSE,
+             caption = "95% CI of the expression coefficient (age ~ expression)")
+
+#### Plot 3: the two genes' data with fitted line and 95% confidence band ####
+{
+  op <- graphics::par(mfrow = c(1, 2), mar = c(4, 4, 3, 1))
+  for (j in 1:2) {
+    pid <- extreme5$probe[j]
+    d   <- data.frame(age = age, expression = exprNorm[pid, ])
+    fit <- lm(age ~ expression, d)
+    gx  <- data.frame(expression = seq(min(d$expression), max(d$expression), length.out = 100))
+    pr  <- predict(fit, gx, interval = "confidence")
+    graphics::plot(age ~ expression, d, pch = 19, col = "grey50",
+                   main = paste0(extreme5$case[j], ": ", extreme5$SYMBOL[j], " (", pid, ")"),
+                   xlab = "Expression (quantile normalized)", ylab = "Age (years)")
+    graphics::polygon(c(gx$expression, rev(gx$expression)), c(pr[, "lwr"], rev(pr[, "upr"])),
+                      col = rgb(0.8, 0.1, 0.1, 0.2), border = NA)
+    graphics::lines(gx$expression, pr[, "fit"], col = "firebrick", lwd = 2)
+  }
+  graphics::par(op)
+}
+```
+
+**Results.** 17,604 of the 44,134 probe intervals (40%) exclude zero, far more than the roughly 2,200 (5%) expected by chance; this is the same count as the p < 0.05 genes after normalization in Week 3. The strongest relationship is **CX3CL1** (823_at): slope −25.8 years per unit of expression, 95% CI [−30.6, −21.0], width 9.6. The weakest is **SRSF3** (232392_at): slope 0.0, 95% CI [−7.4, 7.4], width 14.9, p = 1.
+
+**Interpretation.** *Position* shows direction and whether "no effect" is plausible. CX3CL1's whole interval lies well below zero, so every plausible value says higher expression goes with younger donors, and zero is firmly ruled out. SRSF3's interval is centred exactly on zero, so its data are equally consistent with a positive, negative or no relationship, and its estimated slope means nothing. *Width* shows precision. The slope's standard error is about σ_residual / (SD of expression × √(n − 1)). The two genes have similar expression spread (SD 0.62 vs 0.51), so SRSF3's wider interval comes from its larger residual error: its expression explains none of the variation in age, so the residuals keep the full spread of age (SD ≈ 25 years), while CX3CL1 explains about 40% of it. CX3CL1's interval is narrow relative to its distance from zero, so we can trust both its sign and its approximate size: roughly 21–31 years per unit of expression. Raw widths are not directly comparable between genes in general, because each slope is in units of that gene's own expression. Two caveats apply. With 44,134 tests, about 2,200 intervals would exclude zero by chance alone, so the strongest genes are convincing because their intervals lie far from zero, not just outside it. And as in Week 3, GSE11882 contains several brain regions per donor, so the samples are not independent; the model treats 173 samples as independent, which makes every interval narrower than it should be.
+
+
+### Question 6
+
+Time series analysis of a real repeated-measures clinical signal.
+
+Query a table from the course’s DuckDB/Parquet repository (Week 1 Part 3) that contains a repeated measurement on the same patient or subject over time, for example a vital sign or lab value recorded at multiple time points in MIMIC-III. Use DBI::dbListTables()/DESCRIBE to confirm the table’s structure before proceeding. Following the approach developed in Week 4 Part 4:
+
+**a.**: Construct a time-ordered series for one patient, or one subject, with enough repeated measurements to be meaningful, and use STL decomposition to separate the series into trend, seasonal, and remainder components. If your chosen series has no plausible periodic component, decompose it into trend and remainder only, and explain why you left out a seasonal term.
+
+```{r Q6a, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=8, fig.width=10, results='show', cache=FALSE}
+
+library(DBI)
+library(duckdb)
+
+#### 1. Get MIMIC-III demo CHARTEVENTS (same PhysioNet source as the course repository) ####
+# The quick repoquet repository has no repeated-measurement table, and its build
+# fails (UCI #891 download), so CHARTEVENTS is downloaded once into data/mimic_demo.
+mimic_dir <- file.path("data", "mimic_demo")
+dir.create(mimic_dir, recursive = TRUE, showWarnings = FALSE)
+ce_file <- file.path(mimic_dir, "CHARTEVENTS.csv")
+ce_done <- paste0(ce_file, ".complete")       # marker written only after a complete download
+ce_url  <- "https://physionet.org/files/mimiciii-demo/1.4/CHARTEVENTS.csv?download="
+
+if (!file.exists(ce_done)) {
+  if (!requireNamespace("curl", quietly = TRUE) || packageVersion("curl") < "5.0.0") install.packages("curl")
+  for (k in 1:10) {                           # retry and RESUME interrupted downloads
+    res <- tryCatch(curl::multi_download(ce_url, ce_file, resume = TRUE, progress = TRUE),
+                    error = function(e) NULL)
+    if (!is.null(res) && isTRUE(res$success)) { file.create(ce_done); break }
+    message("Attempt ", k, " incomplete (", round(file.size(ce_file) / 1e6, 1),
+            " MB so far); resuming...")
+    Sys.sleep(3)
+  }
+  stopifnot(file.exists(ce_done))
+}
+
+#### 2. Load into DuckDB and confirm the table structure (Week 1 Part 3) ####
+con <- dbConnect(duckdb::duckdb())
+dbExecute(con, sprintf(
+  "CREATE OR REPLACE TABLE chartevents AS SELECT * FROM read_csv('%s', header = true, auto_detect = true, sample_size = -1)",
+  ce_file))
+dbListTables(con)                                        # "chartevents"
+print(dbGetQuery(con, "DESCRIBE chartevents"))           # column names and types
+print(dbGetQuery(con, "SELECT COUNT(*) AS n_rows, COUNT(DISTINCT subject_id) AS n_patients,
+                              COUNT(DISTINCT icustay_id) AS n_icu_stays FROM chartevents"))
+
+#### 3. Choose one ICU stay: most heart-rate readings, spanning at least 3 days ####
+# Heart rate item IDs: 211 (CareVue) and 220045 (MetaVision); 20-250 bpm drops artefacts
+stays <- dbGetQuery(con, "
+  SELECT icustay_id, subject_id, COUNT(*) AS n_hr,
+         MIN(charttime) AS first_time, MAX(charttime) AS last_time,
+         date_diff('hour', MIN(charttime), MAX(charttime)) AS span_hours
+  FROM chartevents
+  WHERE itemid IN (211, 220045) AND valuenum BETWEEN 20 AND 250 AND icustay_id IS NOT NULL
+  GROUP BY icustay_id, subject_id
+  ORDER BY n_hr DESC
+  LIMIT 10")
+print(stays)
+chosen.stay <- stays$icustay_id[stays$span_hours >= 72][1]   # need >= 3 full 24-h cycles
+stopifnot(!is.na(chosen.stay))
+chosen.subj <- stays$subject_id[stays$icustay_id == chosen.stay]
+cat("Chosen ICU stay:", chosen.stay, "| subject:", chosen.subj, "\n")
+
+hr.raw <- dbGetQuery(con, sprintf("
+  SELECT charttime, valuenum AS hr
+  FROM chartevents
+  WHERE icustay_id = %d AND itemid IN (211, 220045) AND valuenum BETWEEN 20 AND 250
+  ORDER BY charttime", as.integer(chosen.stay)))
+dbDisconnect(con, shutdown = TRUE)            # data is now in R's memory
+
+#### 4. Regular hourly series (STL needs equally spaced, gap-free data) ####
+t0 <- as.POSIXct(trunc(min(hr.raw$charttime), "hours"))
+hr.raw$hour <- floor(as.numeric(difftime(hr.raw$charttime, t0, units = "hours")))
+hourly <- aggregate(hr ~ hour, data = hr.raw, FUN = mean)          # mean within each hour
+grid   <- data.frame(hour = 0:max(hourly$hour))
+grid$hr <- approx(hourly$hour, hourly$hr, xout = grid$hour, rule = 2)$y   # fill gaps
+pct.imputed <- 100 * mean(!grid$hour %in% hourly$hour)
+grid$clock.hour <- (as.numeric(format(t0, "%H", tz = "UTC")) + grid$hour) %% 24
+
+cat("Raw readings:", nrow(hr.raw), "| hourly points:", nrow(grid),
+    "| days:", round(nrow(grid) / 24, 1),
+    "| hours interpolated:", round(pct.imputed, 1), "%\n")
+
+hr.ts <- ts(grid$hr, frequency = 24)          # one "season" = 24 hours
+
+#### 5. STL decomposition: trend + 24-hour seasonal + remainder ####
+stl.fit <- stl(hr.ts, s.window = "periodic", robust = TRUE)   # robust: ICU spikes
+comp <- stl.fit$time.series
+Tt <- comp[, "trend"]; St <- comp[, "seasonal"]; Rt <- comp[, "remainder"]
+
+# Strength of trend and seasonality (0 = none, 1 = dominant)
+strength <- c(trend    = max(0, 1 - var(Rt) / var(Tt + Rt)),
+              seasonal = max(0, 1 - var(Rt) / var(St + Rt)))
+round(strength, 3)
+c(seasonal.amplitude.bpm = round(diff(range(St)), 1),
+  trend.range.bpm        = round(diff(range(Tt)), 1),
+  remainder.sd.bpm       = round(sd(Rt), 2))
+
+#### 6. Plots (each wrapped in { } so its pieces always run together) ####
+# (i) raw readings and hourly series
+{
+  graphics::plot(as.numeric(difftime(hr.raw$charttime, t0, units = "hours")) / 24, hr.raw$hr,
+                 pch = 20, cex = 0.5, col = "grey60",
+                 xlab = "Days since first reading", ylab = "Heart rate (bpm)",
+                 main = paste0("Heart rate, ICU stay ", chosen.stay, " (subject ", chosen.subj, ")"))
+  graphics::lines(grid$hour / 24, grid$hr, col = "steelblue", lwd = 1.5)
+  graphics::legend("topright", bty = "n", legend = c("Charted readings", "Hourly series"),
+                   pch = c(20, NA), lty = c(NA, 1), col = c("grey60", "steelblue"), lwd = c(NA, 1.5))
+}
+
+# (ii) STL decomposition
+{
+  plot(stl.fit, main = "STL decomposition: heart rate = trend + 24-h seasonal + remainder")
+}
+
+# (iii) the 24-hour pattern by clock hour, and the ACF of the detrended series
+{
+  op <- graphics::par(mfrow = c(1, 2))
+  daily <- tapply(as.numeric(St), grid$clock.hour, mean)
+  graphics::plot(as.numeric(names(daily)), daily, type = "b", pch = 19, col = "firebrick",
+                 xlab = "Clock hour", ylab = "Seasonal component (bpm)",
+                 main = "Estimated 24-hour pattern", xaxt = "n")
+  graphics::axis(1, at = seq(0, 23, 3))
+  graphics::abline(h = 0, lty = 2)
+  stats::acf(as.numeric(hr.ts - Tt), lag.max = 72, main = "ACF of detrended series (lags in hours)")
+  graphics::abline(v = c(24, 48, 72), col = "firebrick", lty = 3)
+  graphics::par(op)
+}
+
+#### 7. Trend + remainder only (used if the 24-h component turns out negligible) ####
+if (strength["seasonal"] < 0.2) {
+  lo  <- loess(hr ~ hour, data = grid, span = min(1, 48 / nrow(grid)))   # ~2-day smoother
+  Tt2 <- predict(lo); Rt2 <- grid$hr - Tt2
+  cat("Trend + remainder only: trend range =", round(diff(range(Tt2)), 1),
+      "bpm | remainder SD =", round(sd(Rt2), 2), "bpm\n")
+  {
+    op <- graphics::par(mfrow = c(2, 1), mar = c(4, 4, 2, 1))
+    graphics::plot(grid$hour / 24, grid$hr, type = "l", col = "grey50", xlab = "Days", ylab = "bpm",
+                   main = "Trend + remainder only (no seasonal term)")
+    graphics::lines(grid$hour / 24, Tt2, col = "firebrick", lwd = 2)
+    graphics::plot(grid$hour / 24, Rt2, type = "l", col = "steelblue",
+                   xlab = "Days", ylab = "Remainder (bpm)")
+    graphics::abline(h = 0, lty = 2)
+    graphics::par(op)
+  }
+}
+```
+
+**b**: Test the series for stationarity with the Augmented Dickey-Fuller test (adf.test()). If it is non-stationary, apply first-differencing and re-test. Explain, in terms of this specific series, what stationarity means and why it matters before fitting an ARIMA model.
+
+```{r Q6b, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=6, fig.width=10, results='show', cache=FALSE}
+
+#### Q6b: stationarity (Augmented Dickey-Fuller test) ####
+if (!requireNamespace("tseries", quietly = TRUE)) install.packages("tseries")
+library(tseries)
+
+# H0: the series has a unit root (non-stationary)
+adf.raw <- adf.test(hr.ts)
+adf.raw
+
+# If non-stationary (p >= 0.05): first-difference and re-test
+hr.use <- hr.ts
+if (adf.raw$p.value >= 0.05) {
+  hr.use   <- diff(hr.ts)                    # hour-to-hour change in heart rate
+  adf.diff <- adf.test(hr.use)
+  print(adf.diff)
+}
+
+# Plot the original and the differenced series
+{
+  op <- graphics::par(mfrow = c(2, 1), mar = c(4, 4, 2, 1))
+  graphics::plot(hr.ts, col = "grey40", xlab = "Days", ylab = "bpm",
+                 main = paste("Heart rate (ADF p =", signif(adf.raw$p.value, 3), ")"))
+  graphics::plot(diff(hr.ts), col = "steelblue", xlab = "Days", ylab = "Change (bpm/hour)",
+                 main = "First-differenced heart rate")
+  graphics::abline(h = 0, lty = 2)
+  graphics::par(op)
+}
+```
+
+**c**: Fit an ARIMA model to the series (differenced, if needed) using auto.arima(), and forecast the next several time points with prediction intervals. Plot the forecast and interpret it in plain language: does the forecast look clinically plausible given the trend and variability you observed in part (a)?
+
+```{r Q6c, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=6, fig.width=10, results='show', cache=FALSE}
+
+#### Q6c: ARIMA fit and forecast ####
+if (!requireNamespace("forecast", quietly = TRUE)) install.packages("forecast")
+library(forecast)
+
+# Differencing order from part (b): 1 if the ADF test said non-stationary, else 0
+d.use <- ifelse(adf.raw$p.value >= 0.05, 1, 0)
+
+# Fit ARIMA (no seasonal term: the 24-h component was negligible in part a)
+arima.fit <- auto.arima(hr.ts, d = d.use, seasonal = FALSE)
+summary(arima.fit)
+
+# Residual check: Ljung-Box p > 0.05 means no autocorrelation left
+checkresiduals(arima.fit)
+
+# Forecast the next 24 hours with 80% and 95% prediction intervals
+hr.fc <- forecast(arima.fit, h = 24, level = c(80, 95))
+print(round(data.frame(hour     = 1:24,
+                       forecast = as.numeric(hr.fc$mean),
+                       lo95     = as.numeric(hr.fc$lower[, "95%"]),
+                       hi95     = as.numeric(hr.fc$upper[, "95%"]))[c(1, 6, 12, 24), ], 1))
+
+# Plot: last 5 days of data + 24-hour forecast
+{
+  graphics::plot(hr.fc, xlim = c(max(time(hr.ts)) - 5, max(time(hr.ts)) + 1),
+                 xlab = "Days", ylab = "Heart rate (bpm)",
+                 main = "24-hour heart rate forecast with 80% and 95% prediction intervals")
+}
+```
+
+
+#### Interpretation
+
+**Data and series (part a).** The course's quick repoquet repository has no repeated-measurement table (its MIMIC-III demo tables are admissions, diagnoses, ICU stays, patients and procedures), and its build currently fails because of an unrelated download error. We therefore downloaded `CHARTEVENTS`, the bedside vital-signs table, from the same open-access MIMIC-III demo on PhysioNet, loaded it into DuckDB and confirmed its structure with `dbListTables()` and `DESCRIBE`: 758,355 charted measurements for 99 patients and 133 ICU stays, one row per measurement (`subject_id`, `icustay_id`, `itemid`, `charttime`, `valuenum`, …). Heart rate (item IDs 211 and 220045, restricted to 20–250 bpm) was extracted for the ICU stay with the most readings, ICU stay 249805 (subject 10126): 1,115 readings over 35.2 days. Readings were averaged into hourly bins, and the 2.8% of hours with no reading were filled by linear interpolation, giving a regular series of 845 hourly values.
+
+**Decomposition (part a).** We first ran STL with a 24-hour seasonal term, since heart rate normally follows a circadian rhythm and MIMIC preserves the time of day. The data did not support it. The seasonal strength was only 0.012 (0 = none, 1 = dominant), and the estimated daily cycle had an amplitude of just 2.4 bpm, well below the remainder's SD of 5.8 bpm. The trend, by contrast, was strong (strength 0.795, range 50 bpm). We therefore decomposed the series into **trend and remainder only**, with a LOESS smoother spanning about two days. The trend shows large multi-day swings: heart rate climbs from about 80 to about 120 bpm over the first week, falls to a low of about 67 bpm around day 13, then rises and falls repeatedly between roughly 80 and 123 bpm (peaks near days 23 and 33). This is the pattern we would expect from a long ICU course with episodes of deterioration and recovery. The remainder (SD 4.9 bpm) is centred on zero, with a few isolated spikes (e.g. +35 bpm near day 17, −26 bpm near days 15 and 27) that likely reflect brief clinical events or charting artefacts. A missing circadian rhythm is clinically plausible: critical illness, sedation, continuous lighting and round-the-clock care are known to blunt or abolish the normal day–night pattern, and here the day-to-day changes in the patient's condition are far larger than any daily cycle.
+
+**Stationarity (part b).** A series is stationary when its statistical behaviour (mean, variance and correlation between nearby hours) stays the same over time. For this patient, that means heart rate keeps returning to the same typical level with a similar spread, rather than drifting permanently up or down. The Augmented Dickey-Fuller test (null hypothesis: a unit root, i.e. non-stationary) rejected non-stationarity (ADF = __, p = __), so the series was treated as stationary and **no differencing was needed** (d = 0). This fits the plot: despite large excursions, heart rate repeatedly comes back to roughly 95–100 bpm instead of wandering off. Stationarity matters before fitting an ARIMA model because ARIMA assumes the relationship between each hour and the preceding hours is the same throughout the series. If the mean drifted (a non-stationary series), the model would mistake that drift for short-term dependence, and its coefficients, standard errors and forecasts would be unreliable. Differencing would then be needed to model hour-to-hour *changes* instead. The test result comes with a caveat. The fitted AR coefficients sum to about 0.98, very close to 1, so this series is only just stationary: deviations from the mean fade very slowly, which is exactly why the trend shows long multi-day swings.
+
+**ARIMA model and forecast (part c).** `auto.arima()` selected an **ARIMA(4,0,1)** model with a mean of 97.4 bpm. Each hour's heart rate depends on the previous four hours plus a short-term error correction. The residual standard deviation (√22.78 ≈ 4.8 bpm) matches the remainder from part (a), and the Ljung-Box test found no autocorrelation left in the residuals (Q* = 37.8, df = 43, p = 0.70), so the model captured the series' time structure adequately. The 24-hour forecast starts at 95.5 bpm, close to the last observed values, and drifts only slightly, to 96.0 bpm, slowly pulled toward the long-run mean of 97.4 bpm. The prediction intervals widen quickly: the 95% interval is 86–105 bpm one hour ahead, 79–111 bpm at 6 hours, and 74–118 bpm at 24 hours.
+
+**Is the forecast clinically plausible?** Broadly, yes. The forecast level (about 95 bpm) sits in the patient's typical range, at the upper end of normal and close to the 100 bpm threshold for tachycardia, consistent with an ICU patient. The 24-hour interval (74–118 bpm) spans almost exactly the range seen over the final five days (about 75–127 bpm). Short-term forecasts are the most informative: within the next few hours, heart rate is very likely to stay close to its current level. Beyond that, the forecast mostly says "somewhere in this patient's usual range," and the widening intervals honestly reflect that uncertainty. The model also has clear limits. It projects past patterns forward and knows nothing about why heart rate changes, so it cannot anticipate abrupt events like the rise from about 92 to 127 bpm within a few hours around day 34 (driven by something clinical such as fever, pain, bleeding or a change in medication). An observation like that could fall outside even the 95% interval. An ARIMA forecast like this is therefore useful as a baseline for flagging unexpected values, rather than as a prediction of the patient's clinical course.
+
+
+
