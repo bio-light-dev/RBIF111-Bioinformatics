@@ -1,0 +1,104 @@
+Patient_ID,Sample_ID_Tumor,Sample_ID_Normal,Diagnosis_Age,Disease_Stage,Tumor_Stge_Coe,Cancer_Type_Detailed,Disease_Free_Months,Disease_Free_Status,ER_Status_By_IHC,Fraction_Genome_Altered,IHCHER2,Overall_Survival_Months,Overall_Survival_Status,PR_status_by_ihc,Race_Category,Sex,TMB_nonsynonymous
+TCGA_A7_A0CE,TCGA_A7_A0CE_01,TCGA_A7_A0CE_11,57,Stage II,T2,Breast Invasive Ductal Carcinoma,35.28,0:DiseaseFree,Negative,0.4998,Equivocal,35.28,0:LIVING,Negative,WHITE,Female,5.3
+TCGA_A7_A0CH,TCGA_A7_A0CH_01,TCGA_A7_A0CH_11,79,Stage II,T2,Breast Invasive Ductal Carcinoma,35.45,0:DiseaseFree,NA,0.0627,NA,35.45,0:LIVING,NA,WHITE,Female,1.4
+TCGA_A7_A0D9,TCGA_A7_A0D9_01,TCGA_A7_A0D9_11,37,Stage II,T2,Breast Invasive Ductal Carcinoma,37.42,0:DiseaseFree,Positive,0.1867,Negative,37.42,0:LIVING,Negative,WHITE,Female,1.3
+TCGA_A7_A0DB,TCGA_A7_A0DB_01,TCGA_A7_A0DB_11,56,Stage II,T2,Breast Invasive Ductal Carcinoma,33.08,0:DiseaseFree,Positive,0.3296,Negative,33.08,0:LIVING,Positive,WHITE,Female,3.166666667
+TCGA_A7_A13E,TCGA_A7_A13E_01,TCGA_A7_A13E_11,62,Stage II,T2,Breast Invasive Ductal Carcinoma,18.27,1:Recurred/Progressed,Positive,0.6513,Equivocal,20.17,1:DECEASED,Negative,WHITE,Female,6.9
+TCGA_A7_A13F,TCGA_A7_A13F_01,TCGA_A7_A13F_11,44,Stage III,T3,Breast Invasive Ductal Carcinoma,25.13,0:DiseaseFree,Positive,0.2607,Equivocal,25.13,0:LIVING,Positive,WHITE,Female,1.866666667
+TCGA_AC_A2FB,TCGA_AC_A2FB_01,TCGA_AC_A2FB_11,65,Stage II,T2,Breast Invasive Lobular Carcinoma,40.54,0:DiseaseFree,Positive,0.0024,Positive,40.54,0:LIVING,Positive,WHITE,Female,0.433333333
+TCGA_AC_A2FF,TCGA_AC_A2FF_01,TCGA_AC_A2FF_11,40,Stage II,T2,Breast Invasive Lobular Carcinoma,90.64,0:DiseaseFree,Positive,0.0011,NA,90.64,0:LIVING,Positive,ASIAN,Female,0.5
+TCGA_AC_A2FM,TCGA_AC_A2FM_01,TCGA_AC_A2FM_11,87,Stage II,T2,Breast Invasive Lobular Carcinoma,25.62,1:Recurred/Progressed,NA,0.4843,NA,26.02,1:DECEASED,NA,WHITE,Female,1.2
+TCGA_BH_A0AU,TCGA_BH_A0AU_01,TCGA_BH_A0AU_11,45,Stage II,T2,Breast Invasive Ductal Carcinoma,62.88,0:DiseaseFree,Positive,0.4255,Positive,62.88,0:LIVING,Positive,WHITE,Female,0.466666667
+TCGA_BH_A0AY,TCGA_BH_A0AY_01,TCGA_BH_A0AY_11,62,Stage II,T2,Breast Invasive Ductal Carcinoma,25.53,0:DiseaseFree,Positive,0.2207,Negative,25.53,0:LIVING,Positive,WHITE,Female,2.7
+TCGA_BH_A0AZ,TCGA_BH_A0AZ_01,TCGA_BH_A0AZ_11,47,Stage III,T3,Breast Invasive Ductal Carcinoma,63.04,0:DiseaseFree,Positive,0.2853,Negative,63.04,0:LIVING,Positive,WHITE,Female,1.533333333
+TCGA_BH_A0B3,TCGA_BH_A0B3_01,TCGA_BH_A0B3_11,53,Stage II,T2,Breast Invasive Ductal Carcinoma,39.52,0:DiseaseFree,Negative,0.2146,Negative,39.52,0:LIVING,Negative,WHITE,Female,1.666666667
+TCGA_BH_A0B5,TCGA_BH_A0B5_01,TCGA_BH_A0B5_11,40,Stage III,T2,Breast Invasive Lobular Carcinoma,70.17,0:DiseaseFree,Positive,0.2328,Negative,70.17,0:LIVING,Positive,WHITE,Female,1.7
+TCGA_BH_A0B7,TCGA_BH_A0B7_01,TCGA_BH_A0B7_11,42,Stage II,T2,Breast Invasive Ductal Carcinoma,84.07,0:DiseaseFree,Positive,0.1253,Positive,84.07,0:LIVING,Positive,WHITE,Female,0.633333333
+TCGA_BH_A0BA,TCGA_BH_A0BA_01,TCGA_BH_A0BA_11,51,Stage III,T3,Breast Mixed Ductal and Lobular Carcinoma,37.19,0:DiseaseFree,Positive,0.8633,Negative,37.19,0:LIVING,Positive,WHITE,Female,1.533333333
+TCGA_BH_A0BC,TCGA_BH_A0BC_01,TCGA_BH_A0BC_11,60,Stage III,T2,Breast Invasive Ductal Carcinoma,32,0:DiseaseFree,Positive,0.1967,Negative,32,0:LIVING,Positive,WHITE,Female,3.033333333
+TCGA_BH_A0BJ,TCGA_BH_A0BJ_01,TCGA_BH_A0BJ_11,41,Stage II,T2,Breast Invasive Ductal Carcinoma,21.68,0:DiseaseFree,Positive,0.4003,Negative,21.68,0:LIVING,Positive,WHITE,Female,1.433333333
+TCGA_BH_A0BM,TCGA_BH_A0BM_01,TCGA_BH_A0BM_11,54,Stage II,T2,Breast Invasive Ductal Carcinoma,61.63,0:DiseaseFree,Positive,0.0936,Negative,61.63,0:LIVING,Negative,WHITE,Female,1.7
+TCGA_BH_A0BQ,TCGA_BH_A0BQ_01,TCGA_BH_A0BQ_11,39,Stage I,T1,Breast Invasive Ductal Carcinoma,56.14,1:Recurred/Progressed,Positive,0.1009,Positive,74.08,0:LIVING,Positive,WHITE,Female,0.833333333
+TCGA_BH_A0BS,TCGA_BH_A0BS_01,TCGA_BH_A0BS_11,55,Stage III,T3,Breast Invasive Ductal Carcinoma,85.81,0:DiseaseFree,Positive,0.0493,NA,85.81,0:LIVING,Positive,WHITE,Female,0.333333333
+TCGA_BH_A0BT,TCGA_BH_A0BT_01,TCGA_BH_A0BT_11,56,Stage II,T1,Breast Invasive Ductal Carcinoma,77.69,0:DiseaseFree,Positive,0.3749,Negative,77.69,0:LIVING,Positive,WHITE,Female,0.966666667
+TCGA_BH_A0BV,TCGA_BH_A0BV_01,TCGA_BH_A0BV_11,78,Stage II,T2,Breast Invasive Ductal Carcinoma,49.9,0:DiseaseFree,Positive,0.1734,Negative,49.9,0:LIVING,Positive,WHITE,Female,1.666666667
+TCGA_BH_A0BW,TCGA_BH_A0BW_01,TCGA_BH_A0BW_11,71,Stage I,T1,Breast Invasive Ductal Carcinoma,77.89,0:DiseaseFree,Negative,0.3953,NA,77.89,0:LIVING,Negative,BLACK OR AFRICAN AMERICAN,Female,3.633333333
+TCGA_BH_A0BZ,TCGA_BH_A0BZ_01,TCGA_BH_A0BZ_11,59,Stage III,T3,Breast Invasive Ductal Carcinoma,74.08,0:DiseaseFree,Positive,0.15,Negative,74.08,0:LIVING,Positive,WHITE,Female,6.066666667
+TCGA_BH_A0C0,TCGA_BH_A0C0_01,TCGA_BH_A0C0_11,62,Stage II,T1,Breast Invasive Ductal Carcinoma,41.72,0:DiseaseFree,Positive,0.3023,Equivocal,41.72,0:LIVING,Positive,WHITE,Female,4.066666667
+TCGA_BH_A0C3,TCGA_BH_A0C3_01,TCGA_BH_A0C3_11,47,Stage I,T1,Breast Mixed Ductal and Lobular Carcinoma,87.84,1:Recurred/Progressed,Positive,0.1667,Negative,88.99,0:LIVING,Negative,WHITE,Female,0.366666667
+TCGA_BH_A0DD,TCGA_BH_A0DD_01,TCGA_BH_A0DD_11,58,Stage II,T2,Breast Invasive Ductal Carcinoma,81.67,0:DiseaseFree,Positive,0.3503,Positive,81.67,0:LIVING,Positive,WHITE,Male,0.4
+TCGA_BH_A0DG,TCGA_BH_A0DG_01,TCGA_BH_A0DG_11,30,Stage II,T2,Breast Invasive Ductal Carcinoma,67.05,0:DiseaseFree,Positive,0.1591,Negative,67.05,0:LIVING,Negative,BLACK OR AFRICAN AMERICAN,Female,0.766666667
+TCGA_BH_A0DH,TCGA_BH_A0DH_01,TCGA_BH_A0DH_11,63,Stage II,T2,Breast Invasive Ductal Carcinoma,37.98,0:DiseaseFree,Positive,0.2305,Negative,37.98,0:LIVING,Positive,WHITE,Female,1.533333333
+TCGA_BH_A0DK,TCGA_BH_A0DK_01,TCGA_BH_A0DK_11,49,Stage II,T2,Breast Invasive Ductal Carcinoma,13.9,0:DiseaseFree,Positive,0.2171,Negative,13.9,0:LIVING,Positive,WHITE,Female,4.366666667
+TCGA_BH_A0DL,TCGA_BH_A0DL_01,TCGA_BH_A0DL_11,64,Stage II,T2,Metaplastic Breast Cancer,78.22,0:DiseaseFree,Positive,0.2605,Negative,78.22,0:LIVING,Negative,WHITE,Female,2.166666667
+TCGA_BH_A0DP,TCGA_BH_A0DP_01,TCGA_BH_A0DP_11,60,Stage II,T3,Breast Invasive Lobular Carcinoma,15.64,0:DiseaseFree,Positive,0.2568,Negative,15.64,0:LIVING,Positive,WHITE,Female,1.933333333
+TCGA_BH_A0DT,TCGA_BH_A0DT_01,TCGA_BH_A0DT_11,41,Stage II,T1,Breast Invasive Ductal Carcinoma,78.94,0:DiseaseFree,Positive,0.1927,Negative,78.94,0:LIVING,Positive,WHITE,Female,0.366666667
+TCGA_BH_A0DV,TCGA_BH_A0DV_01,TCGA_BH_A0DV_11,54,Stage III,T2,Breast Invasive Ductal Carcinoma,67.81,0:DiseaseFree,Positive,0.0082,Negative,67.81,0:LIVING,Positive,WHITE,Female,0.133333333
+TCGA_BH_A0E0,TCGA_BH_A0E0_01,TCGA_BH_A0E0_11,38,Stage III,T3,Breast Invasive Ductal Carcinoma,4.4,0:DiseaseFree,Negative,0.6731,Negative,4.4,0:LIVING,Negative,WHITE,Female,1.566666667
+TCGA_BH_A0E1,TCGA_BH_A0E1_01,TCGA_BH_A0E1_11,52,Stage II,T2,Breast Invasive Ductal Carcinoma,15.67,0:DiseaseFree,Positive,0.0595,Equivocal,15.67,0:LIVING,Positive,WHITE,Female,1.533333333
+TCGA_BH_A0H5,TCGA_BH_A0H5_01,TCGA_BH_A0H5_11,45,Stage I,T1,Breast Invasive Ductal Carcinoma,53.22,0:DiseaseFree,Positive,0,NA,53.22,0:LIVING,Positive,WHITE,Female,0.3
+TCGA_BH_A0H7,TCGA_BH_A0H7_01,TCGA_BH_A0H7_11,65,Stage III,T1,Breast Invasive Ductal Carcinoma,23.06,0:DiseaseFree,Positive,0.4407,Negative,23.06,0:LIVING,Positive,WHITE,Female,2.133333333
+TCGA_BH_A0H9,TCGA_BH_A0H9_01,TCGA_BH_A0H9_11,69,Stage II,T2,Breast Invasive Ductal Carcinoma,40.97,0:DiseaseFree,Positive,0.3068,Equivocal,40.97,0:LIVING,Positive,WHITE,Female,1.933333333
+TCGA_BH_A0HA,TCGA_BH_A0HA_01,TCGA_BH_A0HA_11,31,Stage I,T1,Breast Invasive Ductal Carcinoma,52.92,0:DiseaseFree,Positive,0.0838,NA,52.92,0:LIVING,Positive,WHITE,Female,7.8
+TCGA_BH_A0HK,TCGA_BH_A0HK_01,TCGA_BH_A0HK_11,81,Stage II,T2,Breast Invasive Ductal Carcinoma,5.85,0:DiseaseFree,Positive,0.0924,Negative,5.85,0:LIVING,Negative,WHITE,Female,4.766666667
+TCGA_BH_A18J,TCGA_BH_A18J_01,TCGA_BH_A18J_11,56,Stage IV,T4,Breast Invasive Ductal Carcinoma,NA,NA,Positive,0.2358,Negative,20.11,1:DECEASED,Positive,WHITE,Female,1.566666667
+TCGA_BH_A18L,TCGA_BH_A18L_01,TCGA_BH_A18L_11,50,Stage III,T3,Breast Invasive Ductal Carcinoma,NA,NA,Positive,0.5814,Negative,26.64,1:DECEASED,Positive,WHITE,Female,0.933333333
+TCGA_BH_A18M,TCGA_BH_A18M_01,TCGA_BH_A18M_11,39,Stage III,T3,Breast Invasive Ductal Carcinoma,NA,NA,Positive,0.1771,Positive,72.5,1:DECEASED,Positive,WHITE,Female,0.366666667
+TCGA_BH_A18N,TCGA_BH_A18N_01,TCGA_BH_A18N_11,88,Stage II,T2,Breast Invasive Ductal Carcinoma,NA,NA,Positive,0.1399,Negative,37.71,1:DECEASED,Positive,WHITE,Female,0.8
+TCGA_BH_A18P,TCGA_BH_A18P_01,TCGA_BH_A18P_11,60,Stage I,T1,Breast Invasive Ductal Carcinoma,NA,NA,Positive,0.1673,Positive,30.26,1:DECEASED,Negative,WHITE,Female,7.366666667
+TCGA_BH_A18Q,TCGA_BH_A18Q_01,TCGA_BH_A18Q_11,56,Stage II,T2,Breast Invasive Ductal Carcinoma,NA,NA,Negative,0.7399,Positive,55.58,1:DECEASED,Negative,WHITE,Female,1.866666667
+TCGA_BH_A18R,TCGA_BH_A18R_01,TCGA_BH_A18R_11,50,Stage II,T2,Breast Invasive Ductal Carcinoma,NA,NA,Indeterminate,0.2866,Positive,37.52,1:DECEASED,Negative,WHITE,Female,0.6
+TCGA_BH_A18S,TCGA_BH_A18S_01,TCGA_BH_A18S_11,79,Stage I,T1,Breast Invasive Ductal Carcinoma,NA,NA,Positive,0.1516,Negative,66,1:DECEASED,Positive,WHITE,Female,0.6
+TCGA_BH_A18U,TCGA_BH_A18U_01,TCGA_BH_A18U_11,72,Stage III,T2,Breast Invasive Ductal Carcinoma,NA,NA,Positive,0.6182,Positive,51.35,1:DECEASED,Positive,WHITE,Female,2.066666667
+TCGA_BH_A18V,TCGA_BH_A18V_01,TCGA_BH_A18V_11,48,Stage II,T2,Breast Invasive Ductal Carcinoma,NA,NA,Negative,0.7015,Negative,51.12,1:DECEASED,Negative,WHITE,Female,4.5
+TCGA_BH_A1EN,TCGA_BH_A1EN_01,TCGA_BH_A1EN_11,78,Stage II,T2,Breast Invasive Ductal Carcinoma,NA,NA,Negative,0.6267,Positive,69.88,1:DECEASED,Negative,WHITE,Female,1.066666667
+TCGA_BH_A1EO,TCGA_BH_A1EO_01,TCGA_BH_A1EO_11,68,Stage II,T1,Breast Mixed Ductal and Lobular Carcinoma,NA,NA,Positive,0.2619,Negative,91.92,1:DECEASED,Positive,WHITE,Female,0.9
+TCGA_BH_A1ET,TCGA_BH_A1ET_01,TCGA_BH_A1ET_11,55,Stage I,T1,Breast Invasive Ductal Carcinoma,NA,NA,Positive,0.0892,Negative,82.79,1:DECEASED,Positive,WHITE,Female,0.566666667
+TCGA_BH_A1EU,TCGA_BH_A1EU_01,TCGA_BH_A1EU_11,83,Stage I,T1,Breast Invasive Ductal Carcinoma,NA,NA,Positive,0.1179,Negative,42.25,1:DECEASED,Positive,WHITE,Female,0.433333333
+TCGA_BH_A1EV,TCGA_BH_A1EV_01,TCGA_BH_A1EV_11,45,Stage III,T3,Breast Invasive Ductal Carcinoma,NA,NA,Positive,0.4189,Positive,11.99,1:DECEASED,Positive,WHITE,Female,2.166666667
+TCGA_BH_A1EW,TCGA_BH_A1EW_01,TCGA_BH_A1EW_11,38,Stage II,T2,Breast Invasive Ductal Carcinoma,NA,NA,Negative,0.3453,Negative,55.65,1:DECEASED,Negative,WHITE,Female,0.3
+TCGA_BH_A1F0,TCGA_BH_A1F0_01,TCGA_BH_A1F0_11,80,Stage II,T1,Breast Invasive Ductal Carcinoma,NA,NA,Negative,0.0288,Negative,25.79,1:DECEASED,Indeterminate,WHITE,Female,0.5
+TCGA_BH_A1F2,TCGA_BH_A1F2_01,TCGA_BH_A1F2_11,53,Stage III,T4,Paget Disease of the Nipple,NA,NA,Positive,0.4715,Positive,31.5,1:DECEASED,Positive,WHITE,Female,1.133333333
+TCGA_BH_A1F6,TCGA_BH_A1F6_01,TCGA_BH_A1F6_11,51,N,T4,Breast Invasive Ductal Carcinoma,NA,NA,Negative,0.5787,Negative,97.4,1:DECEASED,Negative,WHITE,Female,1.466666667
+TCGA_BH_A1F8,TCGA_BH_A1F8_01,TCGA_BH_A1F8_11,90,Stage III,T4,Breast Invasive Ductal Carcinoma,NA,NA,Positive,0.9971,Positive,25.07,1:DECEASED,Positive,WHITE,Female,3.433333333
+TCGA_BH_A1FB,TCGA_BH_A1FB_01,TCGA_BH_A1FB_11,60,Stage II,T2,Breast Invasive Ductal Carcinoma,NA,NA,Positive,0.0542,Negative,120.53,1:DECEASED,Positive,WHITE,Female,NA
+TCGA_BH_A1FC,TCGA_BH_A1FC_01,TCGA_BH_A1FC_11,78,Stage II,T1,Breast Invasive Ductal Carcinoma,NA,NA,Negative,0.4675,Negative,114.06,1:DECEASED,Negative,BLACK OR AFRICAN AMERICAN,Female,2
+TCGA_BH_A1FD,TCGA_BH_A1FD_01,TCGA_BH_A1FD_11,68,Stage I,T1,Breast Invasive Ductal Carcinoma,NA,NA,Positive,0.4385,Negative,33.15,1:DECEASED,Positive,WHITE,Female,0.733333333
+TCGA_BH_A1FE,TCGA_BH_A1FE_01,TCGA_BH_A1FE_11,31,Stage II,T2,Breast Invasive Ductal Carcinoma,NA,NA,Positive,0.1298,NA,74.67,1:DECEASED,Positive,WHITE,Female,0.366666667
+TCGA_BH_A1FG,TCGA_BH_A1FG_01,TCGA_BH_A1FG_11,88,Stage I,T1,Breast Invasive Ductal Carcinoma,NA,NA,Positive,0.1163,Negative,122.73,1:DECEASED,Positive,WHITE,Female,0.433333333
+TCGA_BH_A1FH,TCGA_BH_A1FH_01,TCGA_BH_A1FH_11,47,Stage IV,T2,Breast Invasive Ductal Carcinoma,NA,NA,Positive,0.0222,NA,33.97,1:DECEASED,Negative,WHITE,Female,0.066666667
+TCGA_BH_A1FJ,TCGA_BH_A1FJ_01,TCGA_BH_A1FJ_11,66,Stage III,T3,Breast Invasive Ductal Carcinoma,NA,NA,Negative,0.1001,NA,63.3,1:DECEASED,Positive,WHITE,Female,0.6
+TCGA_BH_A1FM,TCGA_BH_A1FM_01,TCGA_BH_A1FM_11,44,Stage III,T2,Breast Invasive Ductal Carcinoma,NA,NA,Positive,0.5273,NA,45.6,1:DECEASED,Negative,WHITE,Female,1.033333333
+TCGA_BH_A1FN,TCGA_BH_A1FN_01,TCGA_BH_A1FN_11,34,Stage II,T2,Breast Invasive Ductal Carcinoma,NA,NA,Positive,0.5352,NA,72.01,1:DECEASED,Positive,WHITE,Female,2.833333333
+TCGA_BH_A1FR,TCGA_BH_A1FR_01,TCGA_BH_A1FR_11,73,Stage III,T4,Breast Invasive Ductal Carcinoma,NA,NA,Positive,5.00E-04,NA,53.94,1:DECEASED,Positive,WHITE,Female,0.4
+TCGA_BH_A203,TCGA_BH_A203_01,TCGA_BH_A203_11,78,Stage II,T2,Breast Invasive Ductal Carcinoma,NA,NA,NA,0.3623,NA,38.57,1:DECEASED,NA,WHITE,Female,1.266666667
+TCGA_BH_A204,TCGA_BH_A204_01,TCGA_BH_A204_11,80,Stage II,T2,Breast Invasive Ductal Carcinoma,NA,NA,NA,0.2346,NA,83.25,1:DECEASED,NA,WHITE,Female,1.033333333
+TCGA_BH_A208,TCGA_BH_A208_01,TCGA_BH_A208_11,48,Stage II,T2,Breast Invasive Ductal Carcinoma,NA,NA,NA,0.1644,NA,57.79,1:DECEASED,NA,WHITE,Female,1.533333333
+TCGA_BH_A209,TCGA_BH_A209_01,TCGA_BH_A209_11,77,Stage I,T1,Breast Invasive Ductal Carcinoma,NA,NA,Positive,0.3066,NA,130.06,1:DECEASED,Positive,BLACK OR AFRICAN AMERICAN,Female,1.9
+TCGA_E2_A153,TCGA_E2_A153_01,TCGA_E2_A153_11,51,Stage II,T2,Breast Invasive Ductal Carcinoma,23.23,0:DiseaseFree,Positive,0.1942,Negative,23.23,0:LIVING,Positive,WHITE,Female,1.166666667
+TCGA_E2_A158,TCGA_E2_A158_01,TCGA_E2_A158_11,43,Stage II,T1,Breast Invasive Ductal Carcinoma,14.78,0:DiseaseFree,Negative,0.4764,Negative,14.78,0:LIVING,Negative,WHITE,Female,2.6
+TCGA_E2_A15I,TCGA_E2_A15I_01,TCGA_E2_A15I_11,44,Stage II,T2,Breast Invasive Ductal Carcinoma,55.58,0:DiseaseFree,Positive,0.1498,Equivocal,55.58,0:LIVING,Positive,WHITE,Female,4.166666667
+TCGA_E2_A15K,TCGA_E2_A15K_01,TCGA_E2_A15K_11,58,Stage II,T2,Breast Invasive Ductal Carcinoma,9.03,0:DiseaseFree,Positive,0.1946,Equivocal,9.03,0:LIVING,Positive,WHITE,Female,1.833333333
+TCGA_E2_A15M,TCGA_E2_A15M_01,TCGA_E2_A15M_11,66,Stage II,T2,Breast Invasive Lobular Carcinoma,NA,NA,Positive,0.2774,Negative,11.04,1:DECEASED,Positive,WHITE,Female,3.033333333
+TCGA_E2_A1BC,TCGA_E2_A1BC_01,TCGA_E2_A1BC_11,63,Stage I,T1,Breast Invasive Lobular Carcinoma,16.46,0:DiseaseFree,Positive,0.1381,Negative,16.46,0:LIVING,Positive,NA,Female,1.566666667
+TCGA_E2_A1IG,TCGA_E2_A1IG_01,TCGA_E2_A1IG_11,45,Stage II,T2,Breast Invasive Ductal Carcinoma,70.3,0:DiseaseFree,Positive,0.1263,Negative,70.3,0:LIVING,Positive,WHITE,Female,1.066666667
+TCGA_E2_A1L7,TCGA_E2_A1L7_01,TCGA_E2_A1L7_11,40,Stage III,T2,Breast Invasive Ductal Carcinoma,53.19,1:Recurred/Progressed,Negative,0.4586,Negative,60.32,0:LIVING,Negative,WHITE,Female,1.9
+TCGA_E2_A1LB,TCGA_E2_A1LB_01,TCGA_E2_A1LB_11,41,Stage II,T2,Breast Invasive Ductal Carcinoma,75.76,0:DiseaseFree,Negative,0.1072,Positive,75.76,0:LIVING,Negative,BLACK OR AFRICAN AMERICAN,Female,1.033333333
+TCGA_E2_A1LS,TCGA_E2_A1LS_01,TCGA_E2_A1LS_11,46,Stage I,T1,Breast Invasive Ductal Carcinoma,52.69,0:DiseaseFree,Negative,NA,Negative,52.69,0:LIVING,Negative,WHITE,Female,1.966666667
+TCGA_E9_A1N4,TCGA_E9_A1N4_01,TCGA_E9_A1N4_11,41,Stage III,T2,Breast Invasive Lobular Carcinoma,32.85,0:DiseaseFree,Positive,0.1888,Positive,32.85,0:LIVING,Positive,WHITE,Female,0.566666667
+TCGA_E9_A1N5,TCGA_E9_A1N5_01,TCGA_E9_A1N5_11,45,Stage II,T2,Breast Mixed Ductal and Lobular Carcinoma,36.79,0:DiseaseFree,Positive,0.1846,Positive,36.79,0:LIVING,Positive,WHITE,Female,0.733333333
+TCGA_E9_A1N6,TCGA_E9_A1N6_01,TCGA_E9_A1N6_11,52,Stage II,T2,Breast Invasive Ductal Carcinoma,22.08,1:Recurred/Progressed,Positive,0.2459,Positive,22.27,1:DECEASED,Positive,WHITE,Female,NA
+TCGA_E9_A1N9,TCGA_E9_A1N9_01,TCGA_E9_A1N9_11,58,Stage II,T2,Breast Mixed Ductal and Lobular Carcinoma,36.17,0:DiseaseFree,Negative,0.4243,Positive,36.17,0:LIVING,Positive,WHITE,Female,1.333333333
+TCGA_E9_A1NA,TCGA_E9_A1NA_01,TCGA_E9_A1NA_11,58,Stage II,T2,Breast Mixed Ductal and Lobular Carcinoma,36.53,0:DiseaseFree,Positive,0.3875,Positive,36.53,0:LIVING,Positive,WHITE,Female,2.466666667
+TCGA_E9_A1ND,TCGA_E9_A1ND_01,TCGA_E9_A1ND_11,75,Stage II,T2,Breast Invasive Ductal Carcinoma,41.59,0:DiseaseFree,Negative,0.1313,Positive,41.59,0:LIVING,Negative,WHITE,Female,1.766666667
+TCGA_E9_A1NF,TCGA_E9_A1NF_01,TCGA_E9_A1NF_11,60,Stage II,T2,Breast Mixed Ductal and Lobular Carcinoma,2.96,1:Recurred/Progressed,Positive,0.4963,Negative,35.22,1:DECEASED,Positive,WHITE,Female,1.2
+TCGA_E9_A1NG,TCGA_E9_A1NG_01,TCGA_E9_A1NG_11,62,Stage II,T2,Breast Invasive Ductal Carcinoma,NA,NA,Positive,0.0874,Negative,25.82,1:DECEASED,Positive,WHITE,Female,0.5
+TCGA_E9_A1R7,TCGA_E9_A1R7_01,TCGA_E9_A1R7_11,64,Stage II,T2,Breast Invasive Ductal Carcinoma,48.19,0:DiseaseFree,NA,0.3827,NA,48.19,0:LIVING,NA,WHITE,Female,1.333333333
+TCGA_E9_A1RB,TCGA_E9_A1RB_01,TCGA_E9_A1RB_11,40,Stage II,T2,Breast Invasive Ductal Carcinoma,NA,NA,NA,0.6044,NA,32.06,1:DECEASED,NA,WHITE,Female,0.6
+TCGA_E9_A1RC,TCGA_E9_A1RC_01,TCGA_E9_A1RC_11,56,Stage III,T4,Breast Mixed Ductal and Lobular Carcinoma,40.21,0:DiseaseFree,NA,0.2996,NA,40.21,0:LIVING,NA,WHITE,Female,1.1
+TCGA_E9_A1RD,TCGA_E9_A1RD_01,TCGA_E9_A1RD_11,67,Stage II,T2,Breast Invasive Ductal Carcinoma,1.12,0:DiseaseFree,NA,0.2262,NA,1.12,0:LIVING,NA,WHITE,Female,0.633333333
+TCGA_E9_A1RF,TCGA_E9_A1RF_01,TCGA_E9_A1RF_11,68,Stage III,T2,Breast Invasive Ductal Carcinoma,6.57,0:DiseaseFree,NA,0.4068,NA,6.57,0:LIVING,NA,WHITE,Female,3.366666667
+TCGA_E9_A1RH,TCGA_E9_A1RH_01,TCGA_E9_A1RH_11,63,Stage II,T2,Breast Invasive Ductal Carcinoma,46.55,0:DiseaseFree,NA,0.4291,NA,46.55,0:LIVING,NA,WHITE,Female,2.1
+TCGA_E9_A1RI,TCGA_E9_A1RI_01,TCGA_E9_A1RI_11,43,Stage III,T1,Breast Mixed Ductal and Lobular Carcinoma,47.6,0:DiseaseFree,NA,0.1189,NA,47.6,0:LIVING,NA,WHITE,Female,0.4
+TCGA_GI_A2C8,TCGA_GI_A2C8_01,TCGA_GI_A2C8_11,63,Stage III,T4,Breast Invasive Ductal Carcinoma,7.39,0:DiseaseFree,Positive,0.5576,Negative,7.39,0:LIVING,Positive,WHITE,Female,2.766666667
+TCGA_GI_A2C9,TCGA_GI_A2C9_01,TCGA_GI_A2C9_11,58,Stage II,T3,Breast Invasive Ductal Carcinoma,109.79,0:DiseaseFree,Negative,0.5638,Negative,109.79,0:LIVING,Negative,BLACK OR AFRICAN AMERICAN,Female,3.366666667
