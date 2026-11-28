@@ -1,0 +1,783 @@
+---
+title: "RBIF-111 Week 5 Assignment"
+author: "Coddie Curry"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: show
+    theme: flatly
+---
+
+# RBIF-111 Week 5 Homework
+
+The development of antibody-drug conjugates (ADCs) like trastuzumab deruxtecan (TDXd) has substantially changed cancer treatment, expanding the population of breast cancer patients who benefit from targeting HER2. This is an active area of research in oncology.
+
+All tasks in this assignment are based on a subset of data collected in the Cancer Genome Atlas Breast Invasive Carcinoma (TCGA-BRCA) clinical data, mRNA and RPPA protein expression. The assignment is to investigate ERBB2 mRNA and RPPA protein expression and perform some additional analyses.
+
+### Question 1
+
+**1a**: Investigate whether the ERBB2 (HER2) mRNA expression is significantly different between normal and tumor tissues. Perform both an unpaired t-test and a paired t-test. Clearly explain the results from each test and discuss which test is more appropriate for answering this question. Ensure that you state the null hypothesis clearly and indicate whether you accept or reject it based on the results obtained.
+
+
+```{r Q1a, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+library(tidyverse)
+
+# ---- Load data ----
+clin <- read.csv("TCGA_BRCA_clinical_data.csv", stringsAsFactors = FALSE)
+mrna <- read.csv("TCGA_BRCA_mRNA_expression.csv", row.names = 1, check.names = FALSE)
+
+# ERBB2 expression as a named vector (names = sample IDs)
+erbb2 <- unlist(mrna["ERBB2", ])
+
+# ---- Build matched tumor/normal table (one row per patient) ----
+pairs_df <- clin %>%
+  transmute(Patient_ID,
+            tumor  = erbb2[Sample_ID_Tumor],
+            normal = erbb2[Sample_ID_Normal]) %>%
+  filter(!is.na(tumor), !is.na(normal)) %>%
+  mutate(log2_tumor  = log2(tumor + 1),
+         log2_normal = log2(normal + 1),
+         diff        = log2_tumor - log2_normal)
+
+cat("Number of matched tumor/normal pairs:", nrow(pairs_df), "\n")
+summary(pairs_df[, c("tumor", "normal")])
+
+# H0: mean ERBB2 expression in tumor = mean ERBB2 expression in normal tissue
+# H1: the means differ (two-sided), alpha = 0.05
+
+# ---- Unpaired (Welch two-sample) t-test ----
+unpaired <- t.test(pairs_df$log2_tumor, pairs_df$log2_normal, paired = FALSE)
+unpaired
+# Student's version (equal variances) for comparison
+t.test(pairs_df$log2_tumor, pairs_df$log2_normal, paired = FALSE, var.equal = TRUE)
+
+# ---- Paired t-test ----
+paired <- t.test(pairs_df$log2_tumor, pairs_df$log2_normal, paired = TRUE)
+paired
+cat("Mean log2 difference (tumor - normal):", round(mean(pairs_df$diff), 3),
+    "=> fold change ~", round(2^mean(pairs_df$diff), 2), "\n")
+
+# Does pairing matter? Correlation between a patient's tumor and normal values
+cor(pairs_df$log2_tumor, pairs_df$log2_normal)
+
+# ---- Assumption check + non-parametric confirmation ----
+shapiro.test(pairs_df$diff)                                   # normality of paired differences
+wilcox.test(pairs_df$tumor, pairs_df$normal, paired = TRUE)   # Wilcoxon signed-rank
+
+# ---- Sensitivity: same tests on the raw (untransformed) scale ----
+t.test(pairs_df$tumor, pairs_df$normal, paired = FALSE)
+t.test(pairs_df$tumor, pairs_df$normal, paired = TRUE)
+
+# ---- Decision ----
+decide <- function(p) ifelse(p < 0.05, "Reject H0", "Fail to reject H0")
+data.frame(test    = c("Unpaired (Welch)", "Paired"),
+           t       = round(c(unpaired$statistic, paired$statistic), 3),
+           df      = round(c(unpaired$parameter, paired$parameter), 1),
+           p_value = signif(c(unpaired$p.value, paired$p.value), 3),
+           decision = decide(c(unpaired$p.value, paired$p.value)))
+
+# ---- Plot: boxplots with lines joining each patient's pair ----
+pairs_df %>%
+  select(Patient_ID, Normal = log2_normal, Tumor = log2_tumor) %>%
+  pivot_longer(-Patient_ID, names_to = "Tissue", values_to = "log2_ERBB2") %>%
+  mutate(Tissue = factor(Tissue, levels = c("Normal", "Tumor"))) %>%
+  ggplot(aes(Tissue, log2_ERBB2)) +
+  geom_line(aes(group = Patient_ID), colour = "grey70", alpha = 0.5) +
+  geom_boxplot(aes(fill = Tissue), width = 0.4, outlier.shape = NA, alpha = 0.7) +
+  geom_point(size = 1, alpha = 0.6) +
+  scale_fill_manual(values = c(Normal = "#4C9BE8", Tumor = "#E8684C")) +
+  labs(title = "ERBB2 (HER2) mRNA: matched tumor vs normal (TCGA-BRCA)",
+       y = "log2(ERBB2 expression + 1)", x = NULL) +
+  theme_minimal() + theme(legend.position = "none")
+
+
+```
+
+#### Part 1(a): Interpretation
+
+**H₀:** Mean ERBB2 mRNA expression is the same in tumor and normal tissue.
+**H₁:** Mean ERBB2 mRNA expression differs between tumor and normal tissue (α = 0.05).
+
+Expression was log2(x + 1)-transformed because the raw values are strongly right-skewed.
+
+- **Unpaired (Welch) t-test:** t = 5.54, df = 196.7, p = 9.63 × 10⁻⁸ → **reject H₀**.
+- **Paired t-test:** mean difference = 1.06 log2 units (about 2.1-fold higher in tumors), t = 6.19, df = 102, p = 1.24 × 10⁻⁸ → **reject H₀**.
+
+Both tests show ERBB2 is significantly higher in tumors. The Wilcoxon signed-rank test (p = 7.56 × 10⁻⁸) and the raw-scale t-tests agree.
+
+**The paired t-test is more appropriate.** Each patient gave both a tumor and a matched normal sample, so the two groups are not independent, as the unpaired test assumes. Pairing removes patient-to-patient variation, giving a larger t-statistic and smaller p-value. In the plot, most patients' lines slope upward from normal to tumor.
+
+
+**1b**: Using the tumor samples only, test whether ERBB2 mRNA expression differs across Disease_Stage (Stage I through Stage IV; exclude any record that does not match one of these four levels). Fit a one-way ANOVA, report the F-statistic, degrees of freedom, and p-value, and state the null hypothesis being tested. If the omnibus test is significant, run an appropriate post-hoc comparison and identify which stages differ from each other. Comment on whether the group sizes are similar enough across stages for the ANOVA’s equal-variance assumption to be reasonable, and check it directly rather than assuming it holds.
+
+```{r Q1b, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+library(tidyverse)
+library(car)   # leveneTest
+
+stage_levels <- c("Stage I", "Stage II", "Stage III", "Stage IV")
+
+# ---- Tumor samples only, keep the four valid stage levels ----
+stage_df <- clin %>%
+  mutate(ERBB2 = erbb2[Sample_ID_Tumor],
+         log2_ERBB2 = log2(ERBB2 + 1)) %>%
+  filter(Disease_Stage %in% stage_levels, !is.na(ERBB2)) %>%
+  mutate(Disease_Stage = factor(Disease_Stage, levels = stage_levels))
+
+cat("Records excluded (stage not I-IV):",
+    sum(!clin$Disease_Stage %in% stage_levels), "\n")
+
+# ---- Group sizes and spread ----
+stage_summary <- stage_df %>%
+  group_by(Disease_Stage) %>%
+  summarise(n = n(), mean = mean(log2_ERBB2), sd = sd(log2_ERBB2),
+            median = median(log2_ERBB2), .groups = "drop")
+stage_summary
+cat("Largest/smallest group size ratio:",
+    round(max(stage_summary$n) / min(stage_summary$n), 1), "\n")
+cat("Largest/smallest SD ratio:",
+    round(max(stage_summary$sd) / min(stage_summary$sd), 2), "\n")
+
+# H0: mean log2 ERBB2 expression is equal across Stage I, II, III and IV
+# H1: at least one stage mean differs, alpha = 0.05
+
+# ---- One-way ANOVA ----
+fit <- aov(log2_ERBB2 ~ Disease_Stage, data = stage_df)
+anova_tab <- summary(fit)[[1]]
+anova_tab
+F_stat <- anova_tab$`F value`[1]
+df1    <- anova_tab$Df[1]
+df2    <- anova_tab$Df[2]
+p_val  <- anova_tab$`Pr(>F)`[1]
+cat(sprintf("F(%d, %d) = %.3f, p = %.4f\n", df1, df2, F_stat, p_val))
+
+# ---- Check equal-variance assumption directly ----
+leveneTest(log2_ERBB2 ~ Disease_Stage, data = stage_df)   # robust (median-centred)
+bartlett.test(log2_ERBB2 ~ Disease_Stage, data = stage_df) # sensitive to non-normality
+
+# Normality of residuals
+shapiro.test(residuals(fit))
+par(mfrow = c(1, 2)); plot(fit, which = 1:2); par(mfrow = c(1, 1))
+
+# ---- Robustness checks that don't assume equal variance / normality ----
+oneway.test(log2_ERBB2 ~ Disease_Stage, data = stage_df, var.equal = FALSE)  # Welch ANOVA
+kruskal.test(log2_ERBB2 ~ Disease_Stage, data = stage_df)                    # Kruskal-Wallis
+
+# ---- Post-hoc ----
+if (p_val < 0.05) {
+  cat("Omnibus ANOVA significant -> Tukey HSD post-hoc:\n")
+  print(TukeyHSD(fit))
+} else {
+  cat("Omnibus ANOVA not significant (p =", round(p_val, 3),
+      ") -> post-hoc testing not warranted.\n",
+      "Tukey HSD shown below for transparency only:\n")
+  print(TukeyHSD(fit))
+}
+
+# ---- Sensitivity: ANOVA on the raw scale ----
+summary(aov(ERBB2 ~ Disease_Stage, data = stage_df))
+bartlett.test(ERBB2 ~ Disease_Stage, data = stage_df)
+
+# ---- Plot ----
+label_y <- max(stage_df$log2_ERBB2) + 0.5
+
+ggplot(stage_df, aes(Disease_Stage, log2_ERBB2, fill = Disease_Stage)) +
+  geom_boxplot(outlier.shape = NA, alpha = 0.7) +
+  geom_jitter(width = 0.15, size = 1.2, alpha = 0.6) +
+  stat_summary(fun = mean, geom = "point", shape = 23, size = 3, fill = "white") +
+  geom_text(data = stage_summary,
+            aes(x = Disease_Stage, y = label_y, label = paste0("n = ", n)),
+            inherit.aes = FALSE) +
+  labs(title = "ERBB2 mRNA in tumors by disease stage (TCGA-BRCA)",
+       subtitle = sprintf("One-way ANOVA: F(%d, %d) = %.2f, p = %.3f", df1, df2, F_stat, p_val),
+       x = NULL, y = "log2(ERBB2 expression + 1)") +
+  theme_minimal() + theme(legend.position = "none")
+
+```
+
+#### Part 1(b): Interpretation
+
+**H₀:** Mean log2 ERBB2 expression is equal across Stages I–IV.
+**H₁:** At least one stage mean differs (α = 0.05).
+
+One record with a non-standard stage ("N") was excluded (n = 102).
+
+**One-way ANOVA: F(3, 98) = 0.487, p = 0.692 → fail to reject H₀.** ERBB2 expression does not differ significantly by stage. Because the overall test is not significant, no post-hoc test is warranted. Tukey HSD confirms that no pair of stages differs (all adjusted p ≥ 0.70).
+
+**Equal-variance assumption:** Group sizes are very unbalanced (14, 61, 25, 2), so unequal variances could affect the ANOVA. Checked directly, the assumption holds on the log2 scale (Levene p = 0.587; Bartlett p = 0.183), although it fails on the raw scale (Bartlett p = 1.1 × 10⁻¹⁰). Welch's ANOVA (p = 0.493) and Kruskal–Wallis (p = 0.728) give the same conclusion. With only 2 patients, Stage IV is poorly estimated and the test has little power for that group.
+
+This fits the biology: HER2 overexpression defines a molecular subtype of breast cancer rather than changing with stage.
+
+### Question 2
+
+Fit a logistic regression predicting ER-IHC status (Positive versus Negative; exclude indeterminate and NA records) from ERBB2 mRNA expression. Report and interpret the coefficient on ERBB2 mRNA expression as an odds ratio with its 95% confidence interval, and report the associated p-value. State the null hypothesis being tested. Then explain, in plain English, why a logistic model rather than an ordinary linear regression is the appropriate choice when the outcome is binary, referencing what happens to a linear model’s predicted probabilities outside the observed range of the predictor.
+
+```{r Q2, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+library(tidyverse)
+
+# ---- Tumor samples with ER status Positive/Negative only ----
+er_df <- clin %>%
+  filter(ER_Status_By_IHC %in% c("Positive", "Negative")) %>%   # drops NA + Indeterminate
+  mutate(ERBB2      = erbb2[Sample_ID_Tumor],
+         log2_ERBB2 = log2(ERBB2 + 1),
+         ER         = factor(ER_Status_By_IHC, levels = c("Negative", "Positive"))) %>%
+  filter(!is.na(ERBB2))
+
+cat("Records excluded (NA or Indeterminate):", nrow(clin) - nrow(er_df), "\n")
+print(table(er_df$ER))
+
+# H0: beta_ERBB2 = 0 (OR = 1) -- ERBB2 expression is not associated with the odds of ER positivity
+# H1: beta_ERBB2 != 0 (OR != 1), alpha = 0.05
+
+# ---- Logistic regression (models P(ER = Positive)) ----
+logit_fit <- glm(ER ~ log2_ERBB2, data = er_df, family = binomial)
+summary(logit_fit)
+
+# ---- Odds ratio, 95% CI, p-value ----
+coef_tab   <- summary(logit_fit)$coefficients
+or         <- exp(coef(logit_fit)["log2_ERBB2"])
+ci_profile <- exp(confint(logit_fit)["log2_ERBB2", ])          # profile-likelihood CI
+ci_wald    <- exp(confint.default(logit_fit)["log2_ERBB2", ])  # Wald CI
+p_val      <- coef_tab["log2_ERBB2", "Pr(>|z|)"]
+
+print(data.frame(term      = "log2(ERBB2 + 1)",
+                 beta      = round(coef(logit_fit)["log2_ERBB2"], 3),
+                 OR        = round(or, 3),
+                 CI_lower  = round(ci_profile[1], 3),
+                 CI_upper  = round(ci_profile[2], 3),
+                 Wald_low  = round(ci_wald[1], 3),
+                 Wald_high = round(ci_wald[2], 3),
+                 p_value   = signif(p_val, 3),
+                 row.names = NULL))
+
+# Likelihood-ratio test (model vs intercept-only)
+anova(logit_fit, test = "Chisq")
+
+# ---- Why logistic, not linear: compare predictions beyond the observed range ----
+lm_fit <- lm(as.numeric(ER == "Positive") ~ log2_ERBB2, data = er_df)
+
+grid <- data.frame(log2_ERBB2 = seq(5, 30, by = 0.1))
+grid$Logistic <- predict(logit_fit, newdata = grid, type = "response")
+grid$Linear   <- predict(lm_fit,    newdata = grid)
+
+print(grid %>% filter(log2_ERBB2 %in% c(5, 10, 15, 20, 25, 30)))
+
+obs_range <- range(er_df$log2_ERBB2)
+
+grid %>%
+  pivot_longer(c(Logistic, Linear), names_to = "Model", values_to = "pred") %>%
+  ggplot(aes(log2_ERBB2, pred, colour = Model)) +
+  annotate("rect", xmin = obs_range[1], xmax = obs_range[2], ymin = -Inf, ymax = Inf,
+           alpha = 0.1, fill = "grey40") +
+  geom_hline(yintercept = c(0, 1), linetype = "dashed") +
+  geom_jitter(data = er_df, aes(log2_ERBB2, as.numeric(ER == "Positive")),
+              inherit.aes = FALSE, height = 0.03, width = 0, alpha = 0.5) +
+  geom_line(linewidth = 1) +
+  scale_colour_manual(values = c(Logistic = "#E8684C", Linear = "#4C9BE8")) +
+  labs(title = "P(ER-positive) vs ERBB2: logistic vs linear model",
+       subtitle = "Shaded = observed ERBB2 range; dashed = probability limits 0 and 1",
+       x = "log2(ERBB2 expression + 1)", y = "Predicted P(ER = Positive)") +
+  theme_minimal()
+
+
+```
+
+
+#### Question 2: Interpretation
+
+**H₀:** ERBB2 expression is not associated with ER status (OR = 1).
+**H₁:** ERBB2 expression is associated with ER status (OR ≠ 1), α = 0.05.
+
+After excluding NA and Indeterminate records, 90 tumors remained (71 ER-positive, 19 ER-negative).
+
+**Result:** OR = 1.21 per doubling of ERBB2, 95% CI 0.85–1.83, p = 0.333 → **fail to reject H₀.**
+
+Each doubling of ERBB2 raises the odds of being ER-positive by about 21%. The confidence interval includes 1, so this effect is not significant. ERBB2 expression does not predict ER status in this data.
+
+**Why logistic regression?**
+
+ER status is yes/no, so the model has to predict a probability between 0 and 1. A linear model fits a straight line that can go past those limits. The plot shows this: beyond the observed data, the linear model predicts probabilities above 1 (1.08 at log2 ERBB2 = 25). A logistic model uses an S-shaped curve that always stays between 0 and 1.
+
+The plot shows this directly: the linear model's predictions exceed 1 just beyond the observed ERBB2 range (about 22 log2 units), while the logistic curve approaches but never crosses 1.
+
+
+### Question 3
+
+In breast cancer diagnostics, HER2 and ER statuses are critical biomarkers that influence treatment decisions. Oncologists are interested in the relationship between HER2-IHC and ER-IHC statuses in breast cancer patients. Please perform a test to determine if there is a significant association between HER2 and ER statuses in these patients. Ensure you state the null hypothesis clearly and indicate whether you accept or reject the null hypothesis based on the results obtained. (Only consider IHC positive and negative records, and remove NA, equivocal, and indeterminate records).
+
+```{r Q3, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+library(tidyverse)
+
+# ---- Keep only Positive/Negative for both HER2-IHC and ER-IHC ----
+her2_er <- clin %>%
+  filter(IHCHER2 %in% c("Positive", "Negative"),
+         ER_Status_By_IHC %in% c("Positive", "Negative")) %>%
+  mutate(HER2 = factor(IHCHER2, levels = c("Negative", "Positive")),
+         ER   = factor(ER_Status_By_IHC, levels = c("Negative", "Positive")))
+
+cat("Patients included:", nrow(her2_er), "\n")
+
+# H0: HER2-IHC status and ER-IHC status are independent (no association)
+# H1: HER2-IHC status and ER-IHC status are associated, alpha = 0.05
+
+# ---- Contingency table ----
+tab <- table(HER2 = her2_er$HER2, ER = her2_er$ER)
+print(addmargins(tab))
+print(round(prop.table(tab, margin = 1), 3))   # row proportions: % ER+ within each HER2 group
+
+# ---- Check expected counts (chi-square needs all >= 5) ----
+chisq_res <- chisq.test(tab)
+print(round(chisq_res$expected, 2))
+
+# ---- Fisher's exact test (used because one expected count < 5) ----
+fisher_res <- fisher.test(tab)
+fisher_res
+
+# ---- Chi-square test for comparison ----
+chisq_res
+
+# ---- Plot ----
+ggplot(her2_er, aes(HER2, fill = ER)) +
+  geom_bar(position = "fill", width = 0.6) +
+  geom_text(stat = "count", aes(label = after_stat(count)),
+            position = position_fill(vjust = 0.5), colour = "white") +
+  scale_fill_manual(values = c(Negative = "#4C9BE8", Positive = "#E8684C")) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(title = "ER-IHC status by HER2-IHC status (TCGA-BRCA)",
+       subtitle = sprintf("Fisher's exact test: p = %.3f", fisher_res$p.value),
+       x = "HER2-IHC status", y = "Proportion of patients", fill = "ER status") +
+  theme_minimal()
+
+```
+
+
+#### Question 3: Interpretation
+
+**H₀:** HER2 status and ER status are independent (not associated).
+**H₁:** HER2 status and ER status are associated (α = 0.05).
+
+After removing NA, Equivocal and Indeterminate records, 70 patients remained.
+
+|               | ER Negative | ER Positive | Total |
+|---------------|-------------|-------------|-------|
+| HER2 Negative | 11          | 39          | 50    |
+| HER2 Positive | 5           | 15          | 20    |
+
+About 78% of HER2-negative and 75% of HER2-positive patients were ER-positive, so the proportions are very similar.
+
+One expected count was below 5 (4.57), so the chi-square test may be unreliable. **Fisher's exact test** was used instead.
+
+**Result:** Fisher's exact test, p = 0.763 (OR = 0.85, 95% CI 0.22–3.65) → **fail to reject H₀.** The chi-square test agrees (χ² = 0, df = 1, p = 1).
+
+There is no significant association between HER2 and ER status in this sample. The small number of HER2-positive patients (n = 20) limits the power to detect one.
+
+
+### Question 4
+
+**4a**: Using “overall survival months” and “overall survival status” as the time-to-event outcome, fit a Cox proportional hazards model with ERBB2 (HER2) status as the predictor. Report and interpret the hazard ratio, its 95% confidence interval, and the associated p-value.
+
+```{r Q4a, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+library(tidyverse)
+library(survival)
+
+# ---- Keep HER2-IHC Positive/Negative with complete survival data ----
+surv_df <- clin %>%
+  filter(IHCHER2 %in% c("Positive", "Negative"),
+         !is.na(Overall_Survival_Months), !is.na(Overall_Survival_Status)) %>%
+  mutate(HER2   = factor(IHCHER2, levels = c("Negative", "Positive")),   # Negative = reference
+         OS_time  = Overall_Survival_Months,
+         OS_event = as.numeric(str_starts(Overall_Survival_Status, "1"))) # 1 = DECEASED
+
+cat("Patients included:", nrow(surv_df), "\n")
+print(table(HER2 = surv_df$HER2, Deceased = surv_df$OS_event))
+
+# H0: HR = 1 -- HER2 status is not associated with the hazard of death
+# H1: HR != 1, alpha = 0.05
+
+# ---- Cox proportional hazards model ----
+cox_fit <- coxph(Surv(OS_time, OS_event) ~ HER2, data = surv_df)
+summary(cox_fit)
+
+cox_sum <- summary(cox_fit)
+print(data.frame(term     = "HER2 Positive vs Negative",
+                 HR       = round(cox_sum$conf.int[1, "exp(coef)"], 3),
+                 CI_lower = round(cox_sum$conf.int[1, "lower .95"], 3),
+                 CI_upper = round(cox_sum$conf.int[1, "upper .95"], 3),
+                 p_value  = signif(cox_sum$coefficients[1, "Pr(>|z|)"], 3),
+                 row.names = NULL))
+
+# ---- Kaplan-Meier curves for visual comparison ----
+km_fit <- survfit(Surv(OS_time, OS_event) ~ HER2, data = surv_df)
+
+km_df <- data.frame(time     = km_fit$time,
+                    surv     = km_fit$surv,
+                    n.censor = km_fit$n.censor,
+                    HER2     = rep(sub("HER2=", "", names(km_fit$strata)), km_fit$strata))
+# add the starting point (time 0, survival 1) for each group
+km_df <- bind_rows(data.frame(time = 0, surv = 1, n.censor = 0,
+                              HER2 = c("Negative", "Positive")), km_df)
+
+ggplot(km_df, aes(time, surv, colour = HER2)) +
+  geom_step(linewidth = 1) +
+  geom_point(data = filter(km_df, n.censor > 0), shape = 3, size = 2) +   # censored patients
+  scale_colour_manual(values = c(Negative = "#4C9BE8", Positive = "#E8684C"),
+                      labels = c("HER2 Negative", "HER2 Positive")) +
+  scale_y_continuous(limits = c(0, 1)) +
+  labs(title = "Overall survival by HER2-IHC status (TCGA-BRCA)",
+       subtitle = sprintf("Cox HR = %.2f (95%% CI %.2f-%.2f), p = %.3f",
+                          cox_sum$conf.int[1, 1], cox_sum$conf.int[1, 3],
+                          cox_sum$conf.int[1, 4], cox_sum$coefficients[1, 5]),
+       x = "Overall survival (months)", y = "Survival probability", colour = NULL) +
+  theme_minimal()
+```
+
+#### Question 4a: Interpretation
+
+**H₀:** HER2 status is not associated with the risk of death (HR = 1).
+**H₁:** HER2 status is associated with the risk of death (HR ≠ 1), α = 0.05.
+
+After removing Equivocal and NA records, 71 patients remained (50 HER2-negative with 18 deaths; 21 HER2-positive with 10 deaths). HER2-negative is the reference group.
+
+**Result:** HR = 1.83, 95% CI 0.80–4.20, p = 0.154 → **fail to reject H₀.**
+
+At any given time, HER2-positive patients had an estimated 83% higher risk of death than HER2-negative patients. However, the confidence interval includes 1, so the difference is not statistically significant. The likelihood-ratio and log-rank tests agree (p = 0.16 and p = 0.15). This sample shows no significant link between HER2 status and overall survival. With only 28 deaths and 21 HER2-positive patients, the study has limited power, which is why the confidence interval is so wide.
+
+The Kaplan–Meier curves show lower survival in HER2-positive patients after about 20 months, but the curves overlap early on and the HER2-positive group is small, so the difference is not significant.
+
+**4b**: Fit either an accelerated failure time (AFT) model or a Gompertz model on the same outcome and predictor. Compare the two models’ conclusions: do they agree on the direction and significance of the HER2 effect? Briefly explain, in plain English, one practical tradeoff between the semi-parametric Cox approach and the fully parametric model you chose (e.g., what assumptions each makes about the shape of the hazard over time).
+
+```{r Q4b, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+library(tidyverse)
+library(survival)
+
+# H0: HER2 status has no effect on survival time (time ratio = 1)
+# H1: HER2 status changes survival time (time ratio != 1), alpha = 0.05
+
+# ---- Weibull accelerated failure time (AFT) model ----
+aft_fit <- survreg(Surv(OS_time, OS_event) ~ HER2, data = surv_df, dist = "weibull")
+summary(aft_fit)
+
+beta   <- coef(aft_fit)["HER2Positive"]
+scale  <- aft_fit$scale
+TR     <- exp(beta)                                  # time ratio
+TR_ci  <- exp(confint(aft_fit)["HER2Positive", ])
+aft_p  <- summary(aft_fit)$table["HER2Positive", "p"]
+HR_aft <- exp(-beta / scale)                         # Weibull-implied hazard ratio
+
+cat(sprintf("Time ratio = %.3f (95%% CI %.3f-%.3f), p = %.3f\n", TR, TR_ci[1], TR_ci[2], aft_p))
+cat(sprintf("Weibull shape = %.2f (>1 means hazard increases over time)\n", 1 / scale))
+cat(sprintf("Implied hazard ratio = %.3f\n", HR_aft))
+
+# Predicted median survival by group
+med <- predict(aft_fit, newdata = data.frame(HER2 = c("Negative", "Positive")),
+               type = "quantile", p = 0.5)
+print(data.frame(HER2 = c("Negative", "Positive"), median_OS_months = round(med, 1)))
+
+# ---- Compare Cox and AFT conclusions ----
+print(data.frame(
+  Model    = c("Cox PH", "Weibull AFT"),
+  Measure  = c("Hazard ratio", "Time ratio"),
+  Estimate = round(c(cox_sum$conf.int[1, 1], TR), 3),
+  CI_lower = round(c(cox_sum$conf.int[1, 3], TR_ci[1]), 3),
+  CI_upper = round(c(cox_sum$conf.int[1, 4], TR_ci[2]), 3),
+  p_value  = round(c(cox_sum$coefficients[1, 5], aft_p), 3),
+  Direction = c("HER2+ higher risk", "HER2+ shorter survival")))
+
+# ---- Plot: Weibull fitted curves over Kaplan-Meier curves ----
+t_grid <- seq(0, 125, by = 0.5)
+lp     <- predict(aft_fit, newdata = data.frame(HER2 = c("Negative", "Positive")), type = "lp")
+weib_df <- bind_rows(
+  data.frame(time = t_grid, surv = exp(-(t_grid / exp(lp[1]))^(1 / scale)), HER2 = "Negative"),
+  data.frame(time = t_grid, surv = exp(-(t_grid / exp(lp[2]))^(1 / scale)), HER2 = "Positive"))
+
+ggplot() +
+  geom_step(data = km_df, aes(time, surv, colour = HER2), linewidth = 0.8, alpha = 0.6) +
+  geom_line(data = weib_df, aes(time, surv, colour = HER2), linewidth = 1, linetype = "dashed") +
+  scale_colour_manual(values = c(Negative = "#4C9BE8", Positive = "#E8684C"),
+                      labels = c("HER2 Negative", "HER2 Positive")) +
+  scale_y_continuous(limits = c(0, 1)) +
+  labs(title = "Kaplan-Meier (solid) vs Weibull AFT fit (dashed)",
+       subtitle = sprintf("Time ratio = %.2f (95%% CI %.2f-%.2f), p = %.3f",
+                          TR, TR_ci[1], TR_ci[2], aft_p),
+       x = "Overall survival (months)", y = "Survival probability", colour = NULL) +
+  theme_minimal()
+
+
+```
+
+#### Question 4b: Interpretation
+
+**H₀:** HER2 status has no effect on survival time (time ratio = 1).
+**H₁:** HER2 status changes survival time (time ratio ≠ 1), α = 0.05.
+
+**Weibull AFT result:** time ratio = 0.77, 95% CI 0.52–1.13, p = 0.184 → **fail to reject H₀.**
+
+HER2-positive patients are estimated to survive about 23% less time than HER2-negative patients (predicted median survival about 63 vs 82 months). The confidence interval includes 1, so this difference is not significant.
+
+**Comparison with Cox:**
+
+| Model       | Estimate           | 95% CI    | p     |
+|-------------|--------------------|-----------|-------|
+| Cox PH      | HR = 1.83          | 0.80–4.20 | 0.154 |
+| Weibull AFT | Time ratio = 0.77  | 0.52–1.13 | 0.184 |
+
+The two models **agree**. Both point the same way (HER2-positive does worse: higher hazard in Cox, shorter survival time in AFT), and neither is significant. The Weibull model's implied hazard ratio (1.69) is close to the Cox HR (1.83).
+
+**Tradeoff between Cox and the Weibull model:**
+
+The Cox model makes no assumption about how the risk of death changes over time. It only assumes the HER2+/HER2− hazard ratio stays constant. This makes it flexible and safe when the true hazard shape is unknown, but it cannot directly predict survival times. The Weibull model assumes the hazard follows a specific shape (here the estimated shape is about 2, meaning risk rises steadily over time). In return, it gives more interpretable results, such as predicted median survival and how much longer or shorter one group survives, and it can be more precise. If the assumed shape is wrong, its estimates can be misleading.
+
+The fitted Weibull curves follow the Kaplan–Meier curves closely, suggesting the Weibull assumption (risk of death rising over time) is reasonable for this data.
+
+
+**4c**: This dataset records death from any cause, not death from breast cancer specifically. Suppose cause-of-death data were available and some patients died from causes unrelated to breast cancer. Explain, conceptually, how a Fine-Gray competing-risks model would change the interpretation of the HER2 hazard ratio you estimated in part (a), and why treating those unrelated deaths as ordinary censoring, the way the standard Cox model does, could be misleading. You do not need to fit this model; a clear written explanation is sufficient.
+
+
+#### Question 4c: Interpretation
+
+**What the HR in part (a) currently means:** The Cox HR of 1.83 compares the risk of death **from any cause** between HER2-positive and HER2-negative patients. Breast cancer deaths and unrelated deaths (e.g., heart disease) are counted together, so the effect of HER2 on cancer death is mixed with differences in other deaths.
+
+**Why treating unrelated deaths as censoring is misleading:** In a standard Cox model, a patient who died of another cause would be censored, just like a patient still alive at the end of follow-up. Censoring assumes the patient **could still die of breast cancer later**, which is impossible for someone who has already died. The model treats these patients as still at risk, which **overestimates** the probability of dying from breast cancer. This matters most for older patients (ages here reach 90), who are more likely to die of other causes first. If the HER2 groups differ in their risk of unrelated death, the HER2 comparison can also be distorted.
+
+**How Fine-Gray changes the interpretation:** Fine-Gray keeps patients who died of other causes in the risk set instead of censoring them. It produces a **sub-distribution hazard ratio (sHR)**, which describes how HER2 affects the **cumulative incidence** of breast cancer death: the actual probability of dying from breast cancer by a given time, given that other causes of death also exist.
+
+- **Cox (part a):** HER2-positive patients have an estimated 83% higher risk of death from any cause.
+- **Fine-Gray:** HER2 status changes the real-world probability of dying **from breast cancer** over time, accounting for deaths from other causes.
+
+This is usually more meaningful for patients and clinicians, because it reflects the actual chance of dying from the disease.
+
+
+### Question 5
+
+The Background for this assignment describes HER2-low disease, tumors that are IHC-equivocal rather than clearly positive or negative, as a clinically important category now that ADCs like TDXd can target it. Using the tumor samples, test whether ERBB2 mRNA expression in HER2-IHC Equivocal patients is practically equivalent to ERBB2 mRNA expression in HER2-IHC Negative patients (exclude Positive, indeterminate, and NA records). Choose and justify an equivalence margin based on the observed spread of ERBB2 expression in this dataset, then run a two one-sided tests (TOST) procedure to test for equivalence within that margin. Report the result and explain, in plain English, why failing to reject the standard null hypothesis of “no difference” in an ordinary t-test would not, by itself, have supported a claim of equivalence.
+
+```{r Q5, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+library(tidyverse)
+
+# ---- Tumor samples, HER2-IHC Equivocal vs Negative only ----
+eq_df <- clin %>%
+  filter(IHCHER2 %in% c("Equivocal", "Negative")) %>%
+  mutate(ERBB2      = erbb2[Sample_ID_Tumor],
+         log2_ERBB2 = log2(ERBB2 + 1),
+         HER2       = factor(IHCHER2, levels = c("Negative", "Equivocal"))) %>%
+  filter(!is.na(ERBB2))
+
+eq_summary <- eq_df %>%
+  group_by(HER2) %>%
+  summarise(n = n(), mean = mean(log2_ERBB2), sd = sd(log2_ERBB2), .groups = "drop")
+print(eq_summary)
+
+equiv <- eq_df$log2_ERBB2[eq_df$HER2 == "Equivocal"]
+neg   <- eq_df$log2_ERBB2[eq_df$HER2 == "Negative"]
+diff  <- mean(equiv) - mean(neg)
+cat(sprintf("Observed difference (Equivocal - Negative): %.3f log2 units\n", diff))
+
+# ---- Equivalence margin: 0.5 x pooled SD (a "medium" standardized effect, Cohen's d = 0.5) ----
+n1 <- length(equiv); n2 <- length(neg)
+sd_pooled <- sqrt(((n1 - 1) * var(equiv) + (n2 - 1) * var(neg)) / (n1 + n2 - 2))
+margin    <- 0.5 * sd_pooled
+cat(sprintf("Pooled SD = %.3f; equivalence margin = +/- %.3f log2 units (~%.2f-fold)\n",
+            sd_pooled, margin, 2^margin))
+
+# H0 (TOST): |difference| >= margin  (the groups are NOT equivalent)
+# H1 (TOST): -margin < difference < margin  (the groups ARE equivalent), alpha = 0.05
+
+# ---- TOST: two one-sided Welch t-tests ----
+tost_lower <- t.test(equiv, neg, mu = -margin, alternative = "greater")  # H0: diff <= -margin
+tost_upper <- t.test(equiv, neg, mu =  margin, alternative = "less")     # H0: diff >= +margin
+tost_p     <- max(tost_lower$p.value, tost_upper$p.value)
+
+ci90 <- t.test(equiv, neg, conf.level = 0.90)$conf.int   # 90% CI matches TOST at alpha = 0.05
+
+print(data.frame(test      = c("Lower bound (diff > -margin)", "Upper bound (diff < +margin)"),
+                 t         = round(c(tost_lower$statistic, tost_upper$statistic), 3),
+                 df        = round(c(tost_lower$parameter, tost_upper$parameter), 1),
+                 p_value   = signif(c(tost_lower$p.value, tost_upper$p.value), 3)))
+cat(sprintf("TOST p = %.3f; 90%% CI for difference = [%.3f, %.3f]; margin = [%.3f, %.3f]\n",
+            tost_p, ci90[1], ci90[2], -margin, margin))
+cat(ifelse(tost_p < 0.05, "Conclusion: groups are EQUIVALENT within the margin\n",
+                          "Conclusion: equivalence NOT demonstrated\n"))
+
+# ---- Standard two-sample t-test (null = no difference), for comparison ----
+t.test(equiv, neg)
+
+# ---- Sensitivity: wider margin of +/- 1 log2 unit (2-fold) ----
+max(t.test(equiv, neg, mu = -1, alternative = "greater")$p.value,
+    t.test(equiv, neg, mu =  1, alternative = "less")$p.value)
+
+# ---- Plot: 90% CI vs equivalence margin ----
+ggplot(data.frame(diff = diff, lo = ci90[1], hi = ci90[2]), aes(x = diff, y = "Equivocal - Negative")) +
+  annotate("rect", xmin = -margin, xmax = margin, ymin = -Inf, ymax = Inf,
+           fill = "#4C9BE8", alpha = 0.15) +
+  geom_vline(xintercept = c(-margin, margin), linetype = "dashed", colour = "#4C9BE8") +
+  geom_vline(xintercept = 0, colour = "grey50") +
+  geom_errorbarh(aes(xmin = lo, xmax = hi), height = 0.15, linewidth = 1) +
+  geom_point(size = 3, colour = "#E8684C") +
+  labs(title = "TOST equivalence test: ERBB2 in HER2-Equivocal vs HER2-Negative tumors",
+       subtitle = sprintf("90%% CI [%.2f, %.2f] vs margin \u00b1%.2f; TOST p = %.3f",
+                          ci90[1], ci90[2], margin, tost_p),
+       x = "Difference in mean log2(ERBB2 + 1)", y = NULL) +
+  theme_minimal()
+
+
+```
+
+#### Question 5: Interpretation
+
+**Data:** 58 tumors (Equivocal n = 8, Negative n = 50). Mean log2 ERBB2 was 14.32 in Equivocal and 13.76 in Negative tumors (difference = 0.56).
+
+**Equivalence margin:** ±0.46 log2 units, which is **0.5 × the pooled SD** (pooled SD = 0.91). A difference smaller than half a standard deviation is a commonly used threshold for a "small-to-medium" effect (Cohen's d = 0.5). It corresponds to about a 1.37-fold change, a modest difference compared with the natural spread of ERBB2 expression between patients in this dataset.
+
+**Hypotheses (TOST):**
+
+- **H₀:** The groups are **not** equivalent (the difference is ≤ −0.46 or ≥ +0.46).
+- **H₁:** The groups **are** equivalent (the difference lies between −0.46 and +0.46), α = 0.05.
+
+**Result:** TOST p = 0.71 (lower test p < 0.001; upper test p = 0.71). The 90% CI for the difference, [0.24, 0.88], extends past the upper margin of 0.46 → **fail to reject H₀; equivalence is not demonstrated.**
+
+The ordinary Welch t-test was actually significant (p = 0.006), so ERBB2 expression is **higher** in Equivocal tumors than in Negative tumors. This fits the idea that HER2-equivocal/HER2-low tumors form a distinct biological group, which is relevant now that T-DXd can target them. With a wider 2-fold margin (±1 log2), equivalence would be supported (p = 0.014), so the conclusion depends on how large a difference is considered meaningful. The Equivocal group is also very small (n = 8).
+
+**Why a non-significant t-test would not prove equivalence:** A standard t-test asks whether there is evidence of a **difference**. A non-significant result only means we didn't find enough evidence of one, and that can happen simply because the sample is small or the data are noisy. "Absence of evidence is not evidence of absence." To claim two groups are the same, we have to show the difference is **small enough to not matter**. That is what TOST does: it makes "not equivalent" the null hypothesis, so equivalence must be positively demonstrated, with the whole confidence interval falling inside a pre-chosen margin.
+
+The plot shows the 90% CI extending beyond the upper equivalence margin, so the groups cannot be considered equivalent.
+
+
+### Question 6
+
+Using HER2-IHC status (Positive versus Negative; exclude equivocal, indeterminate, and NA records) as the exposure and overall survival status as the binary outcome, calculate the absolute risk of death in each group, the absolute risk reduction (ARR) or increase, the relative risk reduction (RRR), and the number needed to treat or harm (NNT/NNH). Report a 95% confidence interval for the ARR. Then test whether the association between HER2 status and survival differs by ER-IHC status (Positive versus Negative), using either an interaction term in a logistic regression or separate stratified comparisons within each ER stratum. Produce a simple forest plot showing the HER2 effect estimate and its confidence interval within each ER stratum, and interpret whether the data support a genuine subgroup effect or whether the strata simply differ by chance.
+
+
+```{r Q6, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+library(tidyverse)
+
+# ---- HER2-IHC Positive/Negative with OS status ----
+risk_df <- clin %>%
+  filter(IHCHER2 %in% c("Positive", "Negative"), !is.na(Overall_Survival_Status)) %>%
+  mutate(HER2  = factor(IHCHER2, levels = c("Negative", "Positive")),
+         death = as.numeric(str_starts(Overall_Survival_Status, "1")))   # 1 = DECEASED
+
+tab <- table(HER2 = risk_df$HER2, Died = risk_df$death)
+print(addmargins(tab))
+
+# ---- Absolute risks ----
+n_neg <- sum(risk_df$HER2 == "Negative"); d_neg <- sum(risk_df$death[risk_df$HER2 == "Negative"])
+n_pos <- sum(risk_df$HER2 == "Positive"); d_pos <- sum(risk_df$death[risk_df$HER2 == "Positive"])
+risk_neg <- d_neg / n_neg
+risk_pos <- d_pos / n_pos
+
+# ---- ARR (risk difference), 95% Wald CI, RRR, NNT/NNH ----
+ard    <- risk_pos - risk_neg                     # > 0 means HER2+ has HIGHER risk (risk increase)
+se_ard <- sqrt(risk_neg * (1 - risk_neg) / n_neg + risk_pos * (1 - risk_pos) / n_pos)
+ard_ci <- ard + c(-1, 1) * 1.96 * se_ard
+rr     <- risk_pos / risk_neg
+rrr    <- (risk_pos - risk_neg) / risk_neg        # positive = relative risk INCREASE
+nn     <- 1 / abs(ard)
+
+print(data.frame(
+  Measure = c("Risk of death, HER2 Negative", "Risk of death, HER2 Positive",
+              "Absolute risk difference (Pos - Neg)", "ARD 95% CI lower", "ARD 95% CI upper",
+              "Relative risk", "Relative risk increase", "Number needed to harm (NNH)"),
+  Value   = round(c(risk_neg, risk_pos, ard, ard_ci, rr, rrr, nn), 3)))
+
+# Test of the difference in proportions
+fisher.test(tab)
+
+# ---- Effect modification by ER status ----
+er_risk <- risk_df %>%
+  filter(ER_Status_By_IHC %in% c("Positive", "Negative")) %>%
+  mutate(ER = factor(ER_Status_By_IHC, levels = c("Negative", "Positive")))
+cat("Patients with ER Positive/Negative:", nrow(er_risk), "\n")
+print(ftable(table(ER = er_risk$ER, HER2 = er_risk$HER2, Died = er_risk$death)))
+
+# H0: the HER2 effect on death is the same in ER-positive and ER-negative patients
+#     (interaction coefficient = 0); alpha = 0.05
+
+# Logistic regression with interaction term
+int_fit  <- glm(death ~ HER2 * ER, data = er_risk, family = binomial)
+main_fit <- glm(death ~ HER2 + ER, data = er_risk, family = binomial)
+summary(int_fit)
+anova(main_fit, int_fit, test = "Chisq")    # likelihood-ratio test for the interaction
+
+# ---- Stratified HER2 odds ratios (for the forest plot) ----
+strat_or <- function(dat, label) {
+  fit <- glm(death ~ HER2, data = dat, family = binomial)
+  ci  <- exp(confint.default(fit)["HER2Positive", ])
+  data.frame(Group = label, n = nrow(dat),
+             OR = exp(coef(fit)["HER2Positive"]), lower = ci[1], upper = ci[2],
+             p = summary(fit)$coefficients["HER2Positive", "Pr(>|z|)"], row.names = NULL)
+}
+
+```
+
+```{r Q6 forest plot, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE, class.source = "fold-show", fig.height=5, fig.width=8, results='show', cache=FALSE}
+
+
+forest_df <- bind_rows(
+  strat_or(risk_df,                           "Overall"),
+  strat_or(filter(er_risk, ER == "Negative"), "ER Negative"),
+  strat_or(filter(er_risk, ER == "Positive"), "ER Positive")) %>%
+  mutate(Group = factor(Group, levels = rev(c("Overall", "ER Negative", "ER Positive"))),
+         label = sprintf("OR %.2f (%.2f-%.2f), n = %d", OR, lower, upper, n))
+print(forest_df %>% mutate(across(c(OR, lower, upper, p), ~ round(.x, 3))))
+
+int_p <- summary(int_fit)$coefficients["HER2Positive:ERPositive", "Pr(>|z|)"]
+
+# ---- Forest plot ----
+ggplot(forest_df, aes(x = OR, y = Group)) +
+  geom_vline(xintercept = 1, linetype = "dashed", colour = "grey50") +
+  geom_errorbarh(aes(xmin = lower, xmax = upper), height = 0.2, linewidth = 0.9) +
+  geom_point(aes(colour = Group == "Overall"), size = 3.5, shape = 18) +
+  geom_text(aes(label = label), vjust = -1.1, size = 3.3) +
+  scale_colour_manual(values = c(`TRUE` = "#E8684C", `FALSE` = "#4C9BE8"), guide = "none") +
+  scale_x_log10() +
+  labs(title = "HER2-positive vs HER2-negative: odds of death, by ER status",
+       subtitle = sprintf("Interaction (HER2 x ER) p = %.3f", int_p),
+       x = "Odds ratio for death (log scale)", y = NULL) +
+  theme_minimal()
+
+```
+
+#### Question 6: Interpretation
+
+**Absolute risk of death (n = 71):**
+
+- HER2 Negative: 18/50 = **36.0%**
+- HER2 Positive: 10/21 = **47.6%**
+
+**Effect measures (HER2 Positive vs Negative):**
+
+- **Absolute risk increase:** 11.6 percentage points, **95% CI −13.5% to +36.8%**
+- **Relative risk:** 1.32, a **relative risk increase of 32%**
+- **Number needed to harm (NNH):** about **9**. For every 9 patients who are HER2-positive rather than HER2-negative, there is about one additional death.
+
+HER2 positivity is linked to a higher risk of death, so these are an absolute risk *increase* and *NNH* rather than a reduction and NNT. However, the 95% CI for the risk difference includes 0 (Fisher's exact p = 0.43), so the increase is **not statistically significant**. Because the CI crosses 0, the NNH's confidence interval runs from benefit (NNT ≈ 7) through infinity to harm (NNH ≈ 3), which means the NNH is very uncertain.
+
+**Does the HER2 effect differ by ER status?**
+
+**H₀:** The effect of HER2 on death is the same in ER-positive and ER-negative patients (interaction = 0).
+
+| Group       | n  | OR (95% CI)      | p     |
+|-------------|----|------------------|-------|
+| Overall     | 71 | 1.62 (0.58–4.54) | 0.36  |
+| ER Negative | 16 | 0.80 (0.09–6.85) | 0.84  |
+| ER Positive | 54 | 1.75 (0.52–5.89) | 0.37  |
+
+**Interaction test:** p = 0.53 (likelihood-ratio test also p = 0.53) → **fail to reject H₀.**
+
+The point estimates look different: HER2-positive appears slightly protective in ER-negative patients (OR 0.80) and harmful in ER-positive patients (OR 1.75). But the confidence intervals in the forest plot overlap heavily, both include 1, and the interaction test is far from significant. The ER-negative stratum has only 16 patients and 7 deaths, so its estimate is very unstable (CI 0.09–6.85).
+
+**Conclusion:** The data **do not support a genuine subgroup effect**. The apparent difference between ER strata is most likely due to chance and small sample sizes. Subgroup differences should only be claimed when a formal interaction test is significant, not just because the stratum estimates look different.
+
+**Limitation:** Overall survival status is analyzed here as a simple yes/no outcome, which ignores how long each patient was followed. The Cox and AFT models in Q4 account for follow-up time.
+
+
+
